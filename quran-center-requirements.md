@@ -56,6 +56,9 @@ A teacher is simply a user with role `TEACHER`. There is no separate self-signup
 - **AI message generation (optional mode):** **Groq** free API (OpenAI-compatible). Env `GROQ_API_KEY`. Recommended model: a larger model for better Arabic — e.g. `llama-3.3-70b-versatile` or a Qwen3 model — confirm the current model id at build time. Free tier (~30 req/min) is ample for this use case.
 - **PDF (report cards):** server-side generation (e.g. `@react-pdf/renderer` or Puppeteer/`playwright-core` on a serverless-compatible setup) with an Arabic/RTL-capable font embedded.
 - **Forms/state:** React Server Components + Server Actions where sensible; client components for interactive forms.
+- **PWA:** `@ducanh2912/next-pwa` — web app manifest (display: standalone, Arabic name, icons), service worker for app-shell caching.
+- **Offline storage:** `Dexie.js` (ergonomic IndexedDB wrapper) — stores pending operations queue and cached teacher data on the device.
+- **Background sync:** Background Sync API (supported on Android Chrome) where available; polling fallback on `window` `online` event everywhere else.
 
 ---
 
@@ -83,11 +86,16 @@ Seed a static reference table so the app can display and validate Quran position
 |-------|-------|
 | id, fullName (Arabic), gender, dateOfBirth | |
 | photoUrl | student photo (URL from Vercel Blob); nullable |
+| nationalId | national ID / identity number; string, nullable |
+| schoolGrade | e.g. "السادس الابتدائي", free text, nullable |
+| neighborhood | area/district within the city, nullable |
 | guardianName, guardianPhone | store phone in international format (e.g. `+9725…`) for `wa.me` links |
+| secondaryPhone | second guardian contact (mother/father), nullable, international format |
 | enrollmentDate, status | `ACTIVE` \| `INACTIVE` \| `GRADUATED` |
 | classId | assigned halaqa (nullable) |
+| previousHifzPages | pages memorized **before** joining the center (integer, nullable) — used as baseline in progress tracking |
 | notes | free text |
-| **Snapshot fields** (denormalized for fast display, updated on each new session): currentTotalPagesMemorized, currentJuz, lastSabaqReference | |
+| **Snapshot fields** (denormalized, updated on each new session): currentTotalPagesMemorized, currentJuz, lastSabaqReference | |
 
 **Class (Halaqa)**
 | Field | Notes |
@@ -128,6 +136,23 @@ Seed a static reference table so the app can display and validate Quran position
 
 > This three-type model (`NEW` / `RECENT_REVISION` / `OLD_REVISION`) is the core of the app. It mirrors the standard halaqa flow: a student presents new memorization, recent revision, and older revision in the same session, each graded separately.
 
+**SardRecord** — periodic comprehensive recitation review, logged manually from the student profile (not part of the daily session)
+| Field | Notes |
+|-------|-------|
+| id, studentId, recordedByUserId | |
+| type | `INDIVIDUAL` (فردي — student recites alone to teacher) \| `GROUP` (مجتمعي — group recitation session) |
+| date | when the سرد took place |
+| fromJuz, toJuz | juz range (integers 1–30); for a single-juz سرد both are equal (e.g. fromJuz=27, toJuz=27) |
+| rating | integer 1–4 |
+| mistakes | integer mistake count |
+| notes | free text |
+
+The student profile shows **two separate سرد entries** — one for each type:
+- **آخر سرد فردي:** most recent `INDIVIDUAL` record → date + juz + rating
+- **آخر سرد مجتمعي:** most recent `GROUP` record → date + juz range + rating
+
+Teacher logs a new سرد by tapping "سرد جديد" on the student profile, picks the type (فردي / مجتمعي), fills in the juz range, rating, mistakes, and notes. No date restriction — can be logged anytime. Full sard history (both types) available as a list below the two summary cards.
+
 **MessageCategory** — parent-message types managed by the principal
 | Field | Notes |
 |-------|-------|
@@ -163,7 +188,17 @@ Seed three defaults: `تنبيه`, `إنذار`, `تشجيع`. Principal can add
 - Principal: full CRUD on all students; assign/reassign a student to a class.
 - Teacher: can **add, edit, and remove** students in their own classes, plus view their profiles.
 - **Student photo:** on add/edit, upload a photo (stored in Vercel Blob; only the URL is saved on the student). Show a placeholder avatar when none is set.
-- Student detail page: photo + profile + memorization summary + attendance summary + history timeline.
+- **Student detail page** shows:
+  - Header: photo, full name, status badge (على المسار / يحتاج متابعة), class badge, edit button.
+  - Metric cards: attendance %, average rating, total sessions.
+  - **البيانات الشخصية:** DOB, national ID, school grade, neighborhood, enrollment date.
+  - **بيانات ولي الأمر:** guardian name, phone 1 (with direct WhatsApp tap icon), secondary phone (optional, also with WhatsApp tap).
+  - **التقدم في الحفظ:** latest surah memorized (auto from hifz snapshot), total pages memorized, pages before enrollment (baseline), then **two سرد summary cards side by side**:
+    - **آخر سرد فردي** — most recent individual sard: juz, date, rating
+    - **آخر سرد مجتمعي** — most recent group sard: juz range (e.g. جزء 28 ← 30), date, rating
+    - Each card has a "سرد جديد" button for its type. Full history (both types) expandable below.
+  - Notes field.
+  - Link to full attendance + hifz session history.
 
 ### 6.3 Class (halaqa) management
 - Principal: CRUD classes, assign a teacher, set level/room/capacity.
@@ -277,10 +312,12 @@ A dedicated page for teachers to generate messages for parents. Because WhatsApp
 ## 7. Non-Functional Requirements
 
 - **Arabic-only & RTL:** the entire UI is Arabic with a right-to-left layout (set `dir="rtl"` and `lang="ar"` at the root). No language toggle. All labels, dates, and generated messages are Arabic. Use an Arabic-friendly font (e.g. a Google Font like Cairo/Tajawal). Numerals: **[DECIDE]** Western (123) or Arabic-Indic (١٢٣).
+- **Offline-first for teachers:** the teacher's core workflow (daily session entry, calendar browsing, roster viewing) must work with no internet connection. See Section 8 (Offline Architecture) for full detail.
+- **Installable PWA (Android):** show an "Add to Home Screen" prompt to teachers on first visit. Once installed, the app runs full-screen (standalone) with no browser bar, and Background Sync is unlocked — meaning queued offline data syncs automatically when the phone reconnects, even with the app closed. **iOS is explicitly out of scope.**
 - **Responsive / mobile-friendly:** teachers will record attendance and hifz on phones or tablets during class — the attendance and hifz entry screens must work well on small screens with large tap targets.
 - **Fast & lightweight:** minimal dependencies, fast page loads, works on modest hardware and slow connections.
 - **Security:** hashed passwords, server-side RBAC, validated inputs, no sensitive data exposed in client bundles, session expiry.
-- **Data integrity:** every attendance and hifz record stores `recordedBy` and timestamps.
+- **Data integrity:** every attendance and hifz record stores `recordedBy` and timestamps. Synced records include the original offline timestamp, not the sync timestamp.
 - **Backup & restore:** a simple admin "export full backup" (JSON/CSV) from within the app. At the infrastructure level, rely on the Postgres provider's automated backups (Neon/Supabase) plus periodic `pg_dump`.
 - **Seed script:** creates the Quran reference data and an initial principal account.
 
@@ -318,25 +355,91 @@ A dedicated page for teachers to generate messages for parents. Because WhatsApp
 
 ## 10. Build Phases (suggested order for Claude Code)
 
-1. **Foundation:** Next.js + TS + Tailwind + shadcn/ui (RTL) + Prisma + Auth.js scaffold on Vercel + Postgres; DB schema & migrations; seed (Quran reference + default message categories + first principal); login + RBAC middleware; root `dir="rtl"` / `lang="ar"`.
-2. **People:** user/teacher management (principal); student CRUD with **photo upload to Vercel Blob** (teachers can add/edit/remove their own); class CRUD; class detail roster with student photos + state badges; teacher↔class and student↔class assignment.
+1. **Foundation:** Next.js + TS + Tailwind + shadcn/ui (RTL) + Prisma + Auth.js scaffold on Vercel + Postgres; DB schema & migrations; seed (Quran reference + default message categories + first principal); login + RBAC middleware; root `dir="rtl"` / `lang="ar"`. Add PWA manifest + basic service worker (app-shell caching only — offline sync comes in Phase 9).
+2. **People:** user/teacher management (principal); full student CRUD with all profile fields (nationalId, schoolGrade, neighborhood, secondaryPhone, previousHifzPages) + **photo upload to Vercel Blob**; `SardRecord` entity + "سرد جديد" flow on student profile; class CRUD; class detail roster with student photos + state badges; teacher↔class and student↔class assignment.
 3. **Timetable:** recurring schedule slots + weekly grid view.
 4. **Daily Session (core):** the unified daily report screen — roster with attendance + per-student hifz entry (`AttendanceRecord` + `HifzSession` + `RecitationEntry`, rating 1–4), single-transaction save, page→surah display from seed, memorization snapshot updates, edit-after-the-fact.
 5. **Calendar & navigation:** per-class monthly calendar with color-coded day states (complete/partial/missed/today/upcoming/no-class) wired to the timetable; tap a day → daily session; principal teacher→class→calendar→day drill-down.
 6. **History & reports:** per-student timeline; per-class report; teacher and principal dashboards; charts; at-risk flags; CSV/PDF export.
 7. **Parent communications:** message categories management (principal); message generator with **both template and Groq AI modes** (AI falls back to template on failure); group daily report via Copy; individual via `wa.me`; **report-card Arabic PDF**; `MessageLog`.
 8. **Polish:** Arabic/RTL pass, mobile optimization of entry + calendar screens, backup/export, README + deployment.
+9. **Offline / PWA:** Dexie.js setup; `pendingOps` + `cachedData` stores; offline-aware save flow on daily session; sync queue drain (online event + Background Sync API + manual button); sync status indicator in nav; conflict check on sync endpoint; cache teacher's class/roster/calendar data on login; install prompt.
 
-Build phase 1 fully and confirm it runs before moving on. Within each phase, prefer working vertical slices (UI + server action + DB) over broad stubs.
+Build each phase fully and confirm it works before moving to the next. Prefer vertical slices.
 
 ---
 
 ## 11. Open Decisions to Confirm
 
-**Settled:** DB = PostgreSQL · Deploy = Vercel · Language = Arabic-only (RTL) · Teachers add/edit/remove own students · Student photos (Vercel Blob) · Rating = 1–4 · Mushaf = 604 Madani · Messages = template **and** Groq AI · Report cards = in v1, **on-demand** (any student, any time, free date-range).
+**Settled:** DB = PostgreSQL · Deploy = Vercel · Language = Arabic-only (RTL) · Teachers add/edit/remove own students · Student photos (Vercel Blob) · Rating = 1–4 · Mushaf = 604 Madani · Messages = template **and** Groq AI · Report cards = v1, on-demand · Offline = Android PWA only (iOS out of scope).
 
 Still to confirm:
-1. "At-risk" thresholds that drive the student state badge (days without new memorization; attendance %).
+1. "At-risk" thresholds for the student state badge (days without new memorization; attendance %).
 2. Numerals in the UI: Western (123) or Arabic-Indic (١٢٣)?
 3. Default message categories beyond `تنبيه` / `إنذار` / `تشجيع` (e.g. `متابعة الغياب`)?
-4. Groq model choice for Arabic (`llama-3.3-70b-versatile` vs a Qwen3 model) — can be finalized by quick testing during the build.
+4. Groq model for Arabic — confirm by testing during the build.
+
+---
+
+## 9-B. Offline Architecture (PWA)
+
+> **Approach:** PWA first. If iOS reliability or offline robustness proves insufficient, the server API is unchanged — migrating to Expo React Native is a clean client-side swap.
+
+### What works offline vs. online-only
+
+| Feature | Offline | Notes |
+|---------|---------|-------|
+| Daily session entry (attendance + hifz) | ✅ | Core use case — queued and synced |
+| Calendar view (current month) | ✅ | Cached on last online session |
+| Class roster + student list | ✅ | Cached on last online session |
+| Timetable | ✅ | Cached |
+| Login / first-time setup | ❌ | Requires internet |
+| Student add / edit / delete | ❌ | Online only (avoid sync conflicts) |
+| Photo upload | ❌ | Online only |
+| AI message generation (Groq) | ❌ | Online only; template mode works offline |
+| Template message generation | ✅ | Client-side fill, no server needed |
+| Report card PDF | ❌ | Server-side render |
+| Reports & analytics | ❌ | Online only |
+
+### Offline storage (Dexie / IndexedDB)
+
+Two stores on the device:
+
+**`pendingOps`** — sync queue: `id`, `type` (e.g. `SAVE_DAILY_SESSION`), `payload` (full JSON), `createdAt` (offline timestamp), `status` (`PENDING` | `SYNCING` | `FAILED`), `retries`.
+
+**`cachedData`** — read-only cache: teacher's own classes, rosters, timetable, current-month calendar state. Refreshed on every successful online session.
+
+### Write flow
+
+```
+Teacher taps "Save"
+      ↓
+Online? → POST to server directly → update cachedData on success
+Offline? → write to pendingOps → show "سيتم المزامنة لاحقاً"
+```
+
+Each queued op carries the **offline timestamp** so records land in the DB with the correct date, not the sync date.
+
+### Sync triggers
+
+1. `window` `online` event → auto-drain queue.
+2. App returns to foreground (`visibilitychange`) → check queue.
+3. **Background Sync API** (Android Chrome) — fires when connectivity returns even if the tab is closed.
+4. Manual **"مزامنة الآن"** button — visible when queue is non-empty.
+
+Queue drains sequentially. On server error the op is marked `FAILED` and shown to the teacher.
+
+### Conflict resolution
+
+Teachers are the sole editors of their own class data — conflicts are rare. Strategy: **server wins** if a record for the same `classId + date` already exists with a newer timestamp. The sync endpoint checks before writing; if rejected, the teacher is notified.
+
+### Sync status indicator (always visible in teacher nav)
+
+- 🟢 متصل (online, nothing pending)
+- 🟡 جاري المزامنة... (syncing)
+- 🔴 غير متصل — N في الانتظار (offline, N pending)
+- ⚠️ فشلت المزامنة (failed — retry button)
+
+### PWA manifest
+
+`name: "استقامة"`, `short_name: "استقامة"`, Android icons (192 + 512px), `display: standalone`, matching theme colour. Show "Add to Home Screen" nudge to teachers on first visit (dismissible, Android Chrome only). Service worker caches app shell + static assets + cached teacher data. **iOS not supported.**

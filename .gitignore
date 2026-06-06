@@ -1,3 +1,24 @@
-.env.local
-node_modules
-.next
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Build output
+.next/
+out/
+
+# Env files (never commit secrets)
+.env
+.env.*
+!.env.example
+
+# PWA service worker (generated at build time)
+public/sw.js
+public/workbox-*.js
+public/worker-*.js
+public/sw.js.map
+public/workbox-*.js.map
+
+# System
+.DS_Store
+*.pem
+Thumbs.db

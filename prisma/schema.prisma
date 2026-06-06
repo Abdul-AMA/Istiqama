@@ -1,0 +1,272 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── Enums ────────────────────────────────────────────────────────────────────
+
+enum Role {
+  PRINCIPAL
+  TEACHER
+}
+
+enum Gender {
+  MALE
+  FEMALE
+}
+
+enum StudentStatus {
+  ACTIVE
+  INACTIVE
+  GRADUATED
+}
+
+enum ClassStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum DayOfWeek {
+  SUN
+  MON
+  TUE
+  WED
+  THU
+  FRI
+  SAT
+}
+
+enum AttendanceStatus {
+  PRESENT
+  ABSENT
+  LATE
+  EXCUSED
+}
+
+enum RecitationType {
+  NEW
+  RECENT_REVISION
+  OLD_REVISION
+}
+
+enum Tone {
+  NEUTRAL
+  POSITIVE
+  WARNING
+}
+
+enum MessageChannel {
+  INDIVIDUAL
+  GROUP
+}
+
+enum MessageMode {
+  TEMPLATE
+  AI
+}
+
+// ─── Reference ────────────────────────────────────────────────────────────────
+
+model Surah {
+  number    Int    @id
+  nameAr    String
+  ayahCount Int
+  startPage Int
+}
+
+// ─── Users ────────────────────────────────────────────────────────────────────
+
+model User {
+  id           String   @id @default(cuid())
+  fullName     String
+  email        String   @unique
+  passwordHash String
+  role         Role     @default(TEACHER)
+  phone        String?
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  // Relations
+  classes          Class[]          @relation("TeacherClasses")
+  attendanceLogged AttendanceRecord[] @relation("RecordedByUser")
+  hifzLogged       HifzSession[]    @relation("HifzRecordedByUser")
+  messageCategories MessageCategory[] @relation("CategoryCreatedByUser")
+  messageLogs      MessageLog[]     @relation("MessageCreatedByUser")
+}
+
+// ─── Students ─────────────────────────────────────────────────────────────────
+
+model Student {
+  id           String        @id @default(cuid())
+  fullName     String
+  gender       Gender
+  dateOfBirth  DateTime?     @db.Date
+  photoUrl     String?
+  guardianName String?
+  guardianPhone String?
+  enrollmentDate DateTime    @default(now()) @db.Date
+  status       StudentStatus @default(ACTIVE)
+  notes        String?
+
+  // Snapshot fields (denormalized, updated on each new hifz session)
+  currentTotalPagesMemorized Int     @default(0)
+  currentJuz                 Int?
+  lastSabaqReference         String?
+
+  // FK
+  classId String?
+  class   Class?  @relation(fields: [classId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  attendanceRecords AttendanceRecord[]
+  hifzSessions      HifzSession[]
+  messageLogs       MessageLog[]
+}
+
+// ─── Classes (Halaqat) ────────────────────────────────────────────────────────
+
+model Class {
+  id        String      @id @default(cuid())
+  name      String
+  level     String?
+  location  String?
+  capacity  Int?
+  status    ClassStatus @default(ACTIVE)
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+
+  // FK
+  teacherId String
+  teacher   User   @relation("TeacherClasses", fields: [teacherId], references: [id])
+
+  // Relations
+  students          Student[]
+  scheduleSlots     ScheduleSlot[]
+  attendanceRecords AttendanceRecord[]
+  hifzSessions      HifzSession[]
+  messageLogs       MessageLog[]
+}
+
+// ─── Timetable ────────────────────────────────────────────────────────────────
+
+model ScheduleSlot {
+  id        String    @id @default(cuid())
+  dayOfWeek DayOfWeek
+  startTime String
+  endTime   String
+
+  classId String
+  class   Class  @relation(fields: [classId], references: [id], onDelete: Cascade)
+}
+
+// ─── Attendance ───────────────────────────────────────────────────────────────
+
+model AttendanceRecord {
+  id     String           @id @default(cuid())
+  date   DateTime         @db.Date
+  status AttendanceStatus @default(PRESENT)
+  notes  String?
+
+  studentId        String
+  student          Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  classId          String
+  class            Class   @relation(fields: [classId], references: [id])
+  recordedByUserId String
+  recordedBy       User    @relation("RecordedByUser", fields: [recordedByUserId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([studentId, date])
+}
+
+// ─── Hifz Sessions ────────────────────────────────────────────────────────────
+
+model HifzSession {
+  id           String   @id @default(cuid())
+  date         DateTime @db.Date
+  generalNotes String?
+
+  studentId        String
+  student          Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  classId          String
+  class            Class   @relation(fields: [classId], references: [id])
+  recordedByUserId String
+  recordedBy       User    @relation("HifzRecordedByUser", fields: [recordedByUserId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  entries RecitationEntry[]
+
+  @@unique([studentId, date])
+}
+
+// ─── Recitation Entries ───────────────────────────────────────────────────────
+
+model RecitationEntry {
+  id   String         @id @default(cuid())
+  type RecitationType
+
+  fromPage Int
+  toPage   Int
+
+  fromSurah Int?
+  fromAyah  Int?
+  toSurah   Int?
+  toAyah    Int?
+  linesCount Int?
+
+  rating       Int // 1–4
+  mistakeCount Int @default(0)
+  notes        String?
+
+  hifzSessionId String
+  hifzSession   HifzSession @relation(fields: [hifzSessionId], references: [id], onDelete: Cascade)
+
+  @@unique([hifzSessionId, type])
+}
+
+// ─── Parent Messaging ─────────────────────────────────────────────────────────
+
+model MessageCategory {
+  id        String   @id @default(cuid())
+  name      String
+  tone      Tone     @default(NEUTRAL)
+  template  String
+  isActive  Boolean  @default(true)
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+
+  createdByUserId String
+  createdBy       User   @relation("CategoryCreatedByUser", fields: [createdByUserId], references: [id])
+
+  messageLogs MessageLog[]
+}
+
+model MessageLog {
+  id      String         @id @default(cuid())
+  channel MessageChannel
+  mode    MessageMode
+  body    String
+
+  studentId  String?
+  student    Student? @relation(fields: [studentId], references: [id])
+  classId    String?
+  class      Class?   @relation(fields: [classId], references: [id])
+  categoryId String
+  category   MessageCategory @relation(fields: [categoryId], references: [id])
+
+  createdByUserId String
+  createdBy       User   @relation("MessageCreatedByUser", fields: [createdByUserId], references: [id])
+
+  createdAt DateTime @default(now())
+}
