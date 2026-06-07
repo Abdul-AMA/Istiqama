@@ -14,6 +14,7 @@ import {
   Menu,
   X,
   GraduationCap,
+  CalendarDays,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Sheet, SheetContent } from "@/components/ui/sheet"
@@ -29,6 +30,7 @@ const principalNav: NavItem[] = [
   { label: "الرئيسية",   href: "/dashboard",    icon: <LayoutDashboard className="h-5 w-5" /> },
   { label: "الحلقات",    href: "/classes",       icon: <BookOpen className="h-5 w-5" /> },
   { label: "الطلاب",     href: "/students",      icon: <GraduationCap className="h-5 w-5" /> },
+  { label: "الجدول",     href: "/timetable",     icon: <CalendarDays className="h-5 w-5" /> },
   { label: "المعلمون",   href: "/admin/users",   icon: <UserCog className="h-5 w-5" /> },
   { label: "الضيوف",     href: "/admin/guests",  icon: <UserCheck className="h-5 w-5" /> },
 ]
@@ -37,6 +39,7 @@ const teacherNav: NavItem[] = [
   { label: "الرئيسية",   href: "/dashboard",    icon: <LayoutDashboard className="h-5 w-5" /> },
   { label: "حلقاتي",     href: "/classes",       icon: <BookOpen className="h-5 w-5" /> },
   { label: "الطلاب",     href: "/students",      icon: <GraduationCap className="h-5 w-5" /> },
+  { label: "الجدول",     href: "/timetable",     icon: <CalendarDays className="h-5 w-5" /> },
 ]
 
 type Props = {

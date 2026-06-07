@@ -178,6 +178,8 @@ model ScheduleSlot {
 
   classId String
   class   Class  @relation(fields: [classId], references: [id], onDelete: Cascade)
+
+  @@index([classId, dayOfWeek])
 }
 
 // ─── Attendance ───────────────────────────────────────────────────────────────
