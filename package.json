@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "tsx scripts/migrate.ts && next build",
     "start": "next start",
     "postinstall": "prisma generate"
   },
@@ -32,6 +32,7 @@
     "zod": "^3"
   },
   "devDependencies": {
+    "@neondatabase/serverless": "^1.1.0",
     "@tailwindcss/postcss": "^4",
     "@types/bcryptjs": "^2",
     "@types/node": "^20",
