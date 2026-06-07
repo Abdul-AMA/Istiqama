@@ -91,7 +91,7 @@ Seed a static reference table so the app can display and validate Quran position
 | neighborhood | area/district within the city, nullable |
 | guardianName, guardianPhone | store phone in international format (e.g. `+9725…`) for `wa.me` links |
 | secondaryPhone | second guardian contact (mother/father), nullable, international format |
-| enrollmentDate, status | `ACTIVE` \| `INACTIVE` \| `GRADUATED` |
+| enrollmentDate, status | `ACTIVE` \| `INACTIVE` \| `GRADUATED` \| `GUEST` (added offline by teacher, pending principal assignment) |
 | classId | assigned halaqa (nullable) |
 | previousHifzPages | pages memorized **before** joining the center (integer, nullable) — used as baseline in progress tracking |
 | notes | free text |
@@ -188,8 +188,10 @@ Seed three defaults: `تنبيه`, `إنذار`, `تشجيع`. Principal can add
 - Principal: full CRUD on all students; assign/reassign a student to a class.
 - Teacher: can **add, edit, and remove** students in their own classes, plus view their profiles.
 - **Student photo:** on add/edit, upload a photo (stored in Vercel Blob; only the URL is saved on the student). Show a placeholder avatar when none is set.
+- **Guest student (offline-capable):** teacher can add a temporary guest student with minimal info — fullName (required), guardianPhone (optional), notes (optional). Works fully offline, queued as `CREATE_GUEST_STUDENT` in `pendingOps`. On sync, the student is created with `status = GUEST` and `classId` set to the **teacher's current class** — they are immediately part of the class roster, shown with a `ضيف` badge. The teacher can log daily session data for them straight away. The guest stays in the class indefinitely until the principal acts on them.
+- **Principal guest assignment page (`/admin/guests`):** shows all `GUEST` students across all classes with their current class shown. Principal opens any guest → completes their full profile → then either **confirms permanent** (keeps them in their current class, status → `ACTIVE`) or **reassigns** to a different class/teacher (status → `ACTIVE`, classId updated). Until the principal acts, the student remains in the class as a guest.
 - **Student detail page** shows:
-  - Header: photo, full name, status badge (على المسار / يحتاج متابعة), class badge, edit button.
+  - Header: photo, full name, status badge (على المسار / يحتاج متابعة / ضيف), class badge, edit button.
   - Metric cards: attendance %, average rating, total sessions.
   - **البيانات الشخصية:** DOB, national ID, school grade, neighborhood, enrollment date.
   - **بيانات ولي الأمر:** guardian name, phone 1 (with direct WhatsApp tap icon), secondary phone (optional, also with WhatsApp tap).
@@ -206,7 +208,8 @@ Seed three defaults: `تنبيه`, `إنذار`, `تشجيع`. Principal can add
 - **Class detail page (browse students + see their states):** opening a class shows its roster as student cards, each with **photo**, name, and an at-a-glance **state**:
   - current memorization total (pages / juz) and last session date,
   - attendance status/rate over a recent window,
-  - a status badge derived from the at-risk rules (e.g. `على المسار` on-track / `يحتاج متابعة` needs-attention).
+  - a status badge: `على المسار` (on-track) / `يحتاج متابعة` (needs-attention) / `ضيف` (guest — temp student pending principal confirmation).
+- Guest students appear in the roster like any other student but with the `ضيف` badge. They stay in the class and can have daily sessions logged against them until the principal makes them permanent or moves them.
 - From a student card the teacher can open the student detail/history, edit the student, or add/replace the photo.
 
 ### 6.4 Timetable
@@ -340,6 +343,7 @@ A dedicated page for teachers to generate messages for parents. Because WhatsApp
 - `/admin/message-categories` — principal only: manage message categories/templates
 - `/reports` — filtered analytics & exports
 - `/admin/users` — principal only (teacher accounts)
+- `/admin/guests` — principal only: all GUEST students across all classes, complete profile + assign to class/teacher → becomes ACTIVE
 - `/settings` / `/profile`
 
 ---
@@ -356,7 +360,7 @@ A dedicated page for teachers to generate messages for parents. Because WhatsApp
 ## 10. Build Phases (suggested order for Claude Code)
 
 1. **Foundation:** Next.js + TS + Tailwind + shadcn/ui (RTL) + Prisma + Auth.js scaffold on Vercel + Postgres; DB schema & migrations; seed (Quran reference + default message categories + first principal); login + RBAC middleware; root `dir="rtl"` / `lang="ar"`. Add PWA manifest + basic service worker (app-shell caching only — offline sync comes in Phase 9).
-2. **People:** user/teacher management (principal); full student CRUD with all profile fields (nationalId, schoolGrade, neighborhood, secondaryPhone, previousHifzPages) + **photo upload to Vercel Blob**; `SardRecord` entity + "سرد جديد" flow on student profile; class CRUD; class detail roster with student photos + state badges; teacher↔class and student↔class assignment.
+2. **People:** user/teacher management (principal); full student CRUD with all profile fields + **photo upload to Vercel Blob**; **guest student flow** (minimal offline form → `GUEST` status → principal `/admin/guests` assignment page); `SardRecord` entity + "سرد جديد" flow; class CRUD; class detail roster with student photos + state badges (including ضيف badge); teacher↔class and student↔class assignment.
 3. **Timetable:** recurring schedule slots + weekly grid view.
 4. **Daily Session (core):** the unified daily report screen — roster with attendance + per-student hifz entry (`AttendanceRecord` + `HifzSession` + `RecitationEntry`, rating 1–4), single-transaction save, page→surah display from seed, memorization snapshot updates, edit-after-the-fact.
 5. **Calendar & navigation:** per-class monthly calendar with color-coded day states (complete/partial/missed/today/upcoming/no-class) wired to the timetable; tap a day → daily session; principal teacher→class→calendar→day drill-down.
@@ -390,6 +394,7 @@ Still to confirm:
 | Feature | Offline | Notes |
 |---------|---------|-------|
 | Daily session entry (attendance + hifz) | ✅ | Core use case — queued and synced |
+| **Add guest student** | ✅ | Minimal form (name + phone); queued as `CREATE_GUEST_STUDENT` |
 | Calendar view (current month) | ✅ | Cached on last online session |
 | Class roster + student list | ✅ | Cached on last online session |
 | Timetable | ✅ | Cached |
@@ -405,7 +410,9 @@ Still to confirm:
 
 Two stores on the device:
 
-**`pendingOps`** — sync queue: `id`, `type` (e.g. `SAVE_DAILY_SESSION`), `payload` (full JSON), `createdAt` (offline timestamp), `status` (`PENDING` | `SYNCING` | `FAILED`), `retries`.
+**`pendingOps`** — sync queue: `id`, `type` (e.g. `SAVE_DAILY_SESSION` \| `CREATE_GUEST_STUDENT`), `payload` (full JSON), `createdAt` (offline timestamp), `status` (`PENDING` | `SYNCING` | `FAILED`), `retries`.
+
+> **Sync ordering:** `CREATE_GUEST_STUDENT` ops always sync before any `SAVE_DAILY_SESSION` ops that reference the same student. Since the queue drains sequentially in `createdAt` order, this is automatic as long as the guest is created before the session is saved (which the UI enforces).
 
 **`cachedData`** — read-only cache: teacher's own classes, rosters, timetable, current-month calendar state. Refreshed on every successful online session.
 
