@@ -22,3 +22,6 @@ public/workbox-*.js.map
 .DS_Store
 *.pem
 Thumbs.db
+.vercel
+.env*
+tsconfig.tsbuildinfo

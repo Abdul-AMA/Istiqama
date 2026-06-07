@@ -23,6 +23,12 @@ enum StudentStatus {
   ACTIVE
   INACTIVE
   GRADUATED
+  GUEST
+}
+
+enum SardType {
+  INDIVIDUAL
+  GROUP
 }
 
 enum ClassStatus {
@@ -95,6 +101,7 @@ model User {
   classes          Class[]          @relation("TeacherClasses")
   attendanceLogged AttendanceRecord[] @relation("RecordedByUser")
   hifzLogged       HifzSession[]    @relation("HifzRecordedByUser")
+  sardLogged       SardRecord[]     @relation("SardRecordedByUser")
   messageCategories MessageCategory[] @relation("CategoryCreatedByUser")
   messageLogs      MessageLog[]     @relation("MessageCreatedByUser")
 }
@@ -107,8 +114,13 @@ model Student {
   gender       Gender
   dateOfBirth  DateTime?     @db.Date
   photoUrl     String?
-  guardianName String?
+  nationalId    String?
+  schoolGrade   String?
+  neighborhood  String?
+  guardianName  String?
   guardianPhone String?
+  secondaryPhone String?
+  previousHifzPages Int?
   enrollmentDate DateTime    @default(now()) @db.Date
   status       StudentStatus @default(ACTIVE)
   notes        String?
@@ -128,6 +140,7 @@ model Student {
   // Relations
   attendanceRecords AttendanceRecord[]
   hifzSessions      HifzSession[]
+  sardRecords       SardRecord[]
   messageLogs       MessageLog[]
 }
 
@@ -250,6 +263,26 @@ model MessageCategory {
   createdBy       User   @relation("CategoryCreatedByUser", fields: [createdByUserId], references: [id])
 
   messageLogs MessageLog[]
+}
+
+// ─── Sard Records ─────────────────────────────────────────────────────────────
+
+model SardRecord {
+  id       String   @id @default(cuid())
+  type     SardType
+  date     DateTime @db.Date
+  fromJuz  Int
+  toJuz    Int
+  rating   Int
+  mistakes Int      @default(0)
+  notes    String?
+
+  studentId        String
+  student          Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  recordedByUserId String
+  recordedBy       User    @relation("SardRecordedByUser", fields: [recordedByUserId], references: [id])
+
+  createdAt DateTime @default(now())
 }
 
 model MessageLog {

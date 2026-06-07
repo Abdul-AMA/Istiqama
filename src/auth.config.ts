@@ -26,10 +26,10 @@ export default {
       const isOnLogin  = nextUrl.pathname === "/login"
 
       if (!isLoggedIn) {
-        return isOnLogin ? true : false // unauthenticated → redirect to /login
+        return isOnLogin ? true : false
       }
       if (isOnLogin) {
-        return Response.redirect(new URL("/", nextUrl))
+        return Response.redirect(new URL("/dashboard", nextUrl))
       }
 
       // TEACHER cannot reach /admin/* or /teachers/*
@@ -39,7 +39,7 @@ export default {
           nextUrl.pathname.startsWith("/admin") ||
           nextUrl.pathname.startsWith("/teachers")
         if (restricted) {
-          return Response.redirect(new URL("/", nextUrl))
+          return Response.redirect(new URL("/dashboard", nextUrl))
         }
       }
 
