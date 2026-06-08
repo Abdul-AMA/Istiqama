@@ -1,0 +1,229 @@
+import { auth } from "@/auth"
+import { prisma } from "@/lib/prisma"
+import { notFound, redirect } from "next/navigation"
+import Link from "next/link"
+import { Button } from "@/components/ui/button"
+import { ArrowRight } from "lucide-react"
+import { ReportClient, type StudentRow, type Coverage } from "./report-client"
+
+type Props = {
+  params: Promise<{ id: string }>
+  searchParams: Promise<{ from?: string; to?: string }>
+}
+
+const DOW_TO_JS: Record<string, number> = {
+  SUN: 0, MON: 1, TUE: 2, WED: 3, THU: 4, FRI: 5, SAT: 6,
+}
+
+function toUtcDateStr(d: Date) {
+  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}-${String(d.getUTCDate()).padStart(2, "0")}`
+}
+
+export default async function ClassReportPage({ params, searchParams }: Props) {
+  const { id } = await params
+  const sp = await searchParams
+  const session = await auth()
+  const role = session!.user.role!
+  const userId = session!.user.id!
+
+  const cls = await prisma.class.findUnique({
+    where: { id },
+    select: {
+      id: true, name: true,
+      teacherId: true,
+      teacher: { select: { fullName: true } },
+      scheduleSlots: { select: { dayOfWeek: true } },
+      students: {
+        where: { status: { in: ["ACTIVE", "GUEST"] } },
+        select: {
+          id: true, fullName: true, photoUrl: true, status: true,
+          currentTotalPagesMemorized: true,
+        },
+        orderBy: { fullName: "asc" },
+      },
+    },
+  })
+
+  if (!cls) notFound()
+
+  // Access control
+  if (role === "TEACHER" && cls.teacherId !== userId) redirect("/dashboard")
+
+  // Date range defaults to current month
+  const now = new Date()
+  const defaultFrom = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-01`
+  const defaultTo = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`
+  const from = sp.from ?? defaultFrom
+  const to = sp.to ?? defaultTo
+
+  const fromDate = new Date(from)
+  const toDate = new Date(to)
+
+  const studentIds = cls.students.map((s) => s.id)
+  const rosterCount = studentIds.length
+
+  // Last 4 weeks for velocity
+  const fourWeeksAgo = new Date(now)
+  fourWeeksAgo.setDate(now.getDate() - 28)
+
+  const [attendanceInRange, hifzInRange, velocityEntries, lastSessions] =
+    await Promise.all([
+      prisma.attendanceRecord.findMany({
+        where: {
+          studentId: { in: studentIds },
+          date: { gte: fromDate, lte: toDate },
+        },
+        select: { studentId: true, status: true },
+      }),
+      prisma.hifzSession.findMany({
+        where: {
+          studentId: { in: studentIds },
+          date: { gte: fromDate, lte: toDate },
+        },
+        select: {
+          studentId: true, date: true,
+          entries: { select: { rating: true } },
+        },
+      }),
+      prisma.recitationEntry.findMany({
+        where: {
+          type: "NEW",
+          hifzSession: {
+            studentId: { in: studentIds },
+            date: { gte: fourWeeksAgo },
+          },
+        },
+        select: {
+          fromPage: true, toPage: true,
+          hifzSession: { select: { studentId: true } },
+        },
+      }),
+      // Most recent session date per student
+      prisma.hifzSession.findMany({
+        where: { studentId: { in: studentIds } },
+        select: { studentId: true, date: true },
+        orderBy: { date: "desc" },
+      }),
+    ])
+
+  // Build per-student lookup maps
+  const attByStudent = new Map<string, { total: number; present: number }>()
+  for (const r of attendanceInRange) {
+    const existing = attByStudent.get(r.studentId) ?? { total: 0, present: 0 }
+    existing.total++
+    if (r.status === "PRESENT" || r.status === "LATE") existing.present++
+    attByStudent.set(r.studentId, existing)
+  }
+
+  const ratingsByStudent = new Map<string, number[]>()
+  for (const s of hifzInRange) {
+    const existing = ratingsByStudent.get(s.studentId) ?? []
+    for (const e of s.entries) existing.push(e.rating)
+    ratingsByStudent.set(s.studentId, existing)
+  }
+
+  const velocityByStudent = new Map<string, number>()
+  for (const e of velocityEntries) {
+    const sid = e.hifzSession.studentId
+    const pages = e.toPage - e.fromPage + 1
+    velocityByStudent.set(sid, (velocityByStudent.get(sid) ?? 0) + pages)
+  }
+
+  const lastSessionByStudent = new Map<string, string>()
+  for (const s of lastSessions) {
+    if (!lastSessionByStudent.has(s.studentId)) {
+      lastSessionByStudent.set(s.studentId, toUtcDateStr(s.date))
+    }
+  }
+
+  const students: StudentRow[] = cls.students.map((s) => {
+    const att = attByStudent.get(s.id)
+    const ratings = ratingsByStudent.get(s.id) ?? []
+    const velocityPages = velocityByStudent.get(s.id) ?? 0
+
+    return {
+      id: s.id,
+      fullName: s.fullName,
+      photoUrl: s.photoUrl,
+      status: s.status,
+      totalPages: s.currentTotalPagesMemorized,
+      attendanceRate: att && att.total > 0 ? Math.round((att.present / att.total) * 100) : null,
+      avgRating:
+        ratings.length > 0
+          ? ratings.reduce((sum, r) => sum + r, 0) / ratings.length
+          : null,
+      lastSessionDate: lastSessionByStudent.get(s.id) ?? null,
+      velocity: velocityPages / 4, // pages/week over 4 weeks
+    }
+  })
+
+  // Monthly logging coverage
+  const classDaysOfWeek = new Set(cls.scheduleSlots.map((s) => DOW_TO_JS[s.dayOfWeek]))
+
+  // Get all attendance records per date to assess coverage
+  const allAttInRange = await prisma.attendanceRecord.findMany({
+    where: { classId: id, date: { gte: fromDate, lte: toDate } },
+    select: { date: true, studentId: true },
+  })
+
+  const recordsByDate = new Map<string, Set<string>>()
+  for (const r of allAttInRange) {
+    const key = toUtcDateStr(r.date)
+    if (!recordsByDate.has(key)) recordsByDate.set(key, new Set())
+    recordsByDate.get(key)!.add(r.studentId)
+  }
+
+  const coverage: Coverage = { complete: 0, partial: 0, missed: 0, total: 0 }
+  const todayStr = toUtcDateStr(now)
+
+  // Iterate days in the range
+  const current = new Date(fromDate)
+  while (current <= toDate) {
+    const dateStr = toUtcDateStr(current)
+    const jsDay = current.getUTCDay()
+    const isClassDay = classDaysOfWeek.has(jsDay)
+    const isFuture = dateStr > todayStr
+
+    if (isClassDay && !isFuture) {
+      coverage.total++
+      const recorded = recordsByDate.get(dateStr)
+      const recordedCount = recorded?.size ?? 0
+      if (recordedCount === 0) {
+        coverage.missed++
+      } else if (rosterCount > 0 && recordedCount >= rosterCount) {
+        coverage.complete++
+      } else {
+        coverage.partial++
+      }
+    }
+
+    current.setUTCDate(current.getUTCDate() + 1)
+  }
+
+  return (
+    <div className="p-4 md:p-6 space-y-6 max-w-5xl mx-auto">
+      {/* Header */}
+      <div className="flex items-center gap-3">
+        <Link href={`/classes/${id}`}>
+          <Button variant="ghost" size="icon">
+            <ArrowRight className="h-5 w-5" />
+          </Button>
+        </Link>
+        <div>
+          <h1 className="text-xl font-bold">تقرير حلقة {cls.name}</h1>
+          <p className="text-sm text-muted-foreground">
+            {cls.teacher.fullName} · {rosterCount} طالب
+          </p>
+        </div>
+      </div>
+
+      <ReportClient
+        classId={id}
+        students={students}
+        coverage={coverage}
+        from={from}
+        to={to}
+      />
+    </div>
+  )
+}

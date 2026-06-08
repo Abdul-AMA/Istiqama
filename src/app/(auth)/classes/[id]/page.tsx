@@ -69,6 +69,9 @@ export default async function ClassDetailPage({ params }: Props) {
             <Users className="h-3.5 w-3.5" />
             {cls.students.length}
           </Badge>
+          <Link href={`/classes/${cls.id}/report`}>
+            <Button variant="outline" size="sm">تقرير</Button>
+          </Link>
           <AddGuestDialog classId={cls.id} />
           {role === "PRINCIPAL" && (
             <Link href={`/students/new?classId=${cls.id}`}>

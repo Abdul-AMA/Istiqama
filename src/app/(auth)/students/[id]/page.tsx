@@ -136,12 +136,19 @@ export default async function StudentDetailPage({ params }: Props) {
           </p>
         </div>
 
-        <Link href={`/students/${id}/edit`}>
-          <Button variant="outline" size="sm" className="gap-2 shrink-0">
-            <Pencil className="h-4 w-4" />
-            تعديل
-          </Button>
-        </Link>
+        <div className="flex items-center gap-2 shrink-0">
+          <Link href={`/students/${id}/history`}>
+            <Button variant="outline" size="sm" className="gap-2">
+              السجل
+            </Button>
+          </Link>
+          <Link href={`/students/${id}/edit`}>
+            <Button variant="outline" size="sm" className="gap-2">
+              <Pencil className="h-4 w-4" />
+              تعديل
+            </Button>
+          </Link>
+        </div>
       </div>
 
       {/* Metric cards */}
