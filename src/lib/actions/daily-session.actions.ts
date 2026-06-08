@@ -33,6 +33,26 @@ export async function getMyClasses() {
   })
 }
 
+// ─── Get roster for a class (for offline cache warming) ───────────────────────
+
+export async function getClassRoster(classId: string) {
+  const session = await getSessionOrThrow()
+  await assertClassAccess(session.user.id!, session.user.role!, classId)
+
+  return prisma.student.findMany({
+    where: { classId, status: { in: ["ACTIVE", "GUEST"] } },
+    select: {
+      id: true,
+      fullName: true,
+      photoUrl: true,
+      status: true,
+      currentTotalPagesMemorized: true,
+      lastSabaqReference: true,
+    },
+    orderBy: { fullName: "asc" },
+  })
+}
+
 // ─── Load existing daily session data ────────────────────────────────────────
 
 export async function loadDailySession(classId: string, dateStr: string) {

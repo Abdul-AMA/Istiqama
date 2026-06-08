@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useTransition, useEffect, useRef } from "react"
 import { toast } from "sonner"
-import { ChevronDown, ChevronUp, Save, Loader2, BookOpen, GraduationCap, BookMarked } from "lucide-react"
+import { ChevronDown, ChevronUp, Save, Loader2, BookOpen, GraduationCap, BookMarked, WifiOff } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -23,20 +23,23 @@ import {
   getSurahsForRange,
   type SaveSessionInput,
 } from "@/lib/actions/daily-session.actions"
+import { db } from "@/lib/db"
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 type MyClass = { id: string; name: string; teacher: { fullName: string } }
 
+type StudentData = {
+  id: string
+  fullName: string
+  photoUrl: string | null
+  status: string
+  currentTotalPagesMemorized: number
+  lastSabaqReference: string | null
+}
+
 type StudentRow = {
-  student: {
-    id: string
-    fullName: string
-    photoUrl: string | null
-    status: string
-    currentTotalPagesMemorized: number
-    lastSabaqReference: string | null
-  }
+  student: StudentData
   attendance: { studentId: string; status: string; notes: string | null } | null
   hifzSession: {
     id: string
@@ -92,11 +95,9 @@ function emptyRec(type: "NEW" | "RECENT_REVISION" | "OLD_REVISION"): RecEntry {
 function initStudentState(row: StudentRow): StudentState {
   const attendance = (row.attendance?.status as StudentState["attendance"]) ?? "PRESENT"
   const recitations: RecEntry[] = []
-  const usedTypes = new Set<string>()
 
   if (row.hifzSession) {
     for (const e of row.hifzSession.entries) {
-      usedTypes.add(e.type)
       recitations.push({
         type: e.type as "NEW" | "RECENT_REVISION" | "OLD_REVISION",
         fromPage: String(e.fromPage),
@@ -132,11 +133,11 @@ function useSurahLabel(fromPage: string, toPage: string) {
     }
     if (timer.current) clearTimeout(timer.current)
     timer.current = setTimeout(async () => {
-      const surahs = await getSurahsForRange(from, to)
-      if (surahs.length === 0) {
+      try {
+        const surahs = await getSurahsForRange(from, to)
+        setLabel(surahs.length > 0 ? surahs.map((s) => s.nameAr).join(" ، ") : "")
+      } catch {
         setLabel("")
-      } else {
-        setLabel(surahs.map((s) => s.nameAr).join(" ، "))
       }
     }, 400)
     return () => { if (timer.current) clearTimeout(timer.current) }
@@ -174,7 +175,6 @@ function RecitationBlock({
         </button>
       </div>
 
-      {/* Page range */}
       <div className="grid grid-cols-2 gap-2">
         <div className="space-y-1">
           <Label className="text-xs">من صفحة</Label>
@@ -202,7 +202,6 @@ function RecitationBlock({
         </div>
       </div>
 
-      {/* Surah names */}
       {surahLabel && (
         <p className="text-xs text-muted-foreground flex items-center gap-1">
           <BookOpen className="h-3 w-3 shrink-0" />
@@ -210,7 +209,6 @@ function RecitationBlock({
         </p>
       )}
 
-      {/* Rating */}
       <div className="space-y-1">
         <Label className="text-xs">التقييم</Label>
         <div className="grid grid-cols-4 gap-1">
@@ -238,7 +236,6 @@ function RecitationBlock({
         </div>
       </div>
 
-      {/* Mistakes */}
       <div className="flex items-center gap-3">
         <Label className="text-xs shrink-0">عدد الأخطاء</Label>
         <Input
@@ -250,7 +247,6 @@ function RecitationBlock({
         />
       </div>
 
-      {/* Notes */}
       <div className="space-y-1">
         <Label className="text-xs">ملاحظات</Label>
         <Textarea
@@ -313,7 +309,6 @@ function StudentCard({
 
   return (
     <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
-      {/* Card header — always visible */}
       <button
         type="button"
         className="w-full flex items-center gap-3 p-4 text-right"
@@ -347,10 +342,8 @@ function StudentCard({
         </div>
       </button>
 
-      {/* Expanded body */}
       {isExpanded && (
         <div className="border-t px-4 pb-4 pt-3 space-y-4">
-          {/* Attendance selector */}
           <div className="space-y-2">
             <Label className="text-sm font-medium">الحضور</Label>
             <div className="grid grid-cols-4 gap-2">
@@ -372,14 +365,10 @@ function StudentCard({
             </div>
           </div>
 
-          {/* Hifz section — only when present/late */}
           {isPresent && (
             <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <Label className="text-sm font-medium">الحفظ والمراجعة</Label>
-              </div>
+              <Label className="text-sm font-medium">الحفظ والمراجعة</Label>
 
-              {/* Existing recitation blocks */}
               {state.recitations.map((rec, idx) => (
                 <RecitationBlock
                   key={rec.type}
@@ -389,7 +378,6 @@ function StudentCard({
                 />
               ))}
 
-              {/* Add recitation type buttons */}
               {availableTypes.length > 0 && (
                 <div className="flex flex-wrap gap-2">
                   {availableTypes.map((t) => (
@@ -408,7 +396,6 @@ function StudentCard({
                 </div>
               )}
 
-              {/* General notes */}
               <div className="space-y-1">
                 <Label className="text-xs text-muted-foreground">ملاحظات عامة للجلسة</Label>
                 <Textarea
@@ -422,7 +409,6 @@ function StudentCard({
             </div>
           )}
 
-          {/* Attendance notes for absent/excused */}
           {!isPresent && (
             <div className="space-y-1">
               <Label className="text-xs text-muted-foreground">سبب الغياب (اختياري)</Label>
@@ -459,11 +445,51 @@ export function DailySessionClient({
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [saving, startSaving] = useTransition()
+  const [isOffline, setIsOffline] = useState(false)
+  const [fromCache, setFromCache] = useState(false)
+
+  useEffect(() => {
+    if (typeof navigator !== "undefined") setIsOffline(!navigator.onLine)
+    const onOnline = () => setIsOffline(false)
+    const onOffline = () => setIsOffline(true)
+    window.addEventListener("online", onOnline)
+    window.addEventListener("offline", onOffline)
+    return () => {
+      window.removeEventListener("online", onOnline)
+      window.removeEventListener("offline", onOffline)
+    }
+  }, [])
 
   const load = useCallback(async (cid: string, d: string) => {
     if (!cid) return
     setLoading(true)
+    setFromCache(false)
     try {
+      if (!navigator.onLine) {
+        // Load from IndexedDB cache
+        const cached = await db.cachedData.get(`roster:${cid}`)
+        if (cached && Array.isArray(cached.value)) {
+          const students = cached.value as StudentData[]
+          const rosterRows: StudentRow[] = students.map((s) => ({
+            student: s,
+            attendance: null,
+            hifzSession: null,
+          }))
+          setRows(rosterRows)
+          const initStates: Record<string, StudentState> = {}
+          for (const row of rosterRows) {
+            initStates[row.student.id] = initStudentState(row)
+          }
+          setStates(initStates)
+          setExpandedId(rosterRows[0]?.student.id ?? null)
+          setFromCache(true)
+        } else {
+          toast.error("لا تتوفر بيانات محفوظة — اتصل بالإنترنت لتحميل قائمة الطلاب")
+          setRows([])
+        }
+        return
+      }
+
       const data = await loadDailySession(cid, d)
       setRows(data)
       const initStates: Record<string, StudentState> = {}
@@ -471,8 +497,15 @@ export function DailySessionClient({
         initStates[row.student.id] = initStudentState(row)
       }
       setStates(initStates)
-      // Auto-expand first student
       setExpandedId(data[0]?.student.id ?? null)
+
+      // Cache the roster (student data only) for offline use
+      const studentData = data.map((r) => r.student)
+      await db.cachedData.put({
+        key: `roster:${cid}`,
+        value: studentData,
+        updatedAt: Date.now(),
+      })
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "فشل تحميل البيانات")
     } finally {
@@ -510,11 +543,30 @@ export function DailySessionClient({
         }
       })
 
+      if (!navigator.onLine) {
+        await db.pendingOps.add({
+          type: "SAVE_DAILY_SESSION",
+          payload: { classId, date, entries },
+          createdAt: Date.now(),
+          status: "PENDING",
+          retries: 0,
+        })
+        toast.success("سيتم المزامنة لاحقاً ✓")
+        return
+      }
+
       const result = await saveDailySession({ classId, date, entries })
       if ("error" in result) {
         toast.error(result.error)
       } else {
         toast.success("تم الحفظ بنجاح")
+        // Refresh the cache with the latest roster data
+        const studentData = rows.map((r) => r.student)
+        await db.cachedData.put({
+          key: `roster:${classId}`,
+          value: studentData,
+          updatedAt: Date.now(),
+        })
       }
     })
   }
@@ -524,6 +576,18 @@ export function DailySessionClient({
 
   return (
     <div className="space-y-4">
+      {/* Offline indicator */}
+      {isOffline && (
+        <div className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+          <WifiOff className="h-4 w-4 shrink-0" />
+          <span>
+            {fromCache
+              ? "وضع عدم الاتصال — يتم عرض بيانات محفوظة مسبقاً"
+              : "لا يوجد اتصال بالإنترنت"}
+          </span>
+        </div>
+      )}
+
       {/* Class + date selectors */}
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <div className="space-y-1.5">
@@ -569,7 +633,11 @@ export function DailySessionClient({
             <>
               <GraduationCap className="h-12 w-12 mx-auto opacity-30" />
               <p className="text-base font-medium">لا يوجد طلاب في هذه الحلقة</p>
-              <p className="text-sm">أضف طلاباً للحلقة من صفحة إدارة الطلاب</p>
+              <p className="text-sm">
+                {isOffline
+                  ? "لا تتوفر بيانات محفوظة لهذه الحلقة — اتصل بالإنترنت لتحميل القائمة"
+                  : "أضف طلاباً للحلقة من صفحة إدارة الطلاب"}
+              </p>
             </>
           ) : (
             <>
@@ -606,7 +674,6 @@ export function DailySessionClient({
             ))}
           </div>
 
-          {/* Save button */}
           {!isFuture && (
             <div className="sticky bottom-4 pt-2">
               <Button
@@ -617,10 +684,12 @@ export function DailySessionClient({
               >
                 {saving ? (
                   <Loader2 className="h-5 w-5 animate-spin" />
+                ) : isOffline ? (
+                  <WifiOff className="h-5 w-5" />
                 ) : (
                   <Save className="h-5 w-5" />
                 )}
-                حفظ الجلسة
+                {isOffline ? "حفظ (سيُزامَن لاحقاً)" : "حفظ الجلسة"}
               </Button>
             </div>
           )}

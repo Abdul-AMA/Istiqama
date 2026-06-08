@@ -6,7 +6,6 @@ import { useState } from "react"
 import { signOut } from "next-auth/react"
 import {
   LayoutDashboard,
-  Users,
   BookOpen,
   UserCog,
   UserCheck,
@@ -24,6 +23,7 @@ import {
 import { Button } from "@/components/ui/button"
 import { Sheet, SheetContent } from "@/components/ui/sheet"
 import { cn } from "@/lib/utils"
+import { SyncStatus } from "@/components/sync-status"
 
 type NavItem = {
   label: string
@@ -58,7 +58,7 @@ const teacherNav: NavItem[] = [
 ]
 
 type Props = {
-  role:     string
+  role: string
   userName: string
 }
 
@@ -107,6 +107,7 @@ export function MainNav({ role, userName }: Props) {
       </div>
 
       <div className="border-t p-3 space-y-2">
+        <SyncStatus role={role} />
         <div className="px-3 py-2">
           <p className="text-sm font-medium truncate">{userName}</p>
           <p className="text-xs text-muted-foreground">
