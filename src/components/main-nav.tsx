@@ -15,6 +15,7 @@ import {
   X,
   GraduationCap,
   CalendarDays,
+  ClipboardList,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Sheet, SheetContent } from "@/components/ui/sheet"
@@ -28,6 +29,7 @@ type NavItem = {
 
 const principalNav: NavItem[] = [
   { label: "الرئيسية",   href: "/dashboard",    icon: <LayoutDashboard className="h-5 w-5" /> },
+  { label: "الجلسة اليومية", href: "/daily",    icon: <ClipboardList className="h-5 w-5" /> },
   { label: "الحلقات",    href: "/classes",       icon: <BookOpen className="h-5 w-5" /> },
   { label: "الطلاب",     href: "/students",      icon: <GraduationCap className="h-5 w-5" /> },
   { label: "الجدول",     href: "/timetable",     icon: <CalendarDays className="h-5 w-5" /> },
@@ -37,6 +39,7 @@ const principalNav: NavItem[] = [
 
 const teacherNav: NavItem[] = [
   { label: "الرئيسية",   href: "/dashboard",    icon: <LayoutDashboard className="h-5 w-5" /> },
+  { label: "الجلسة اليومية", href: "/daily",    icon: <ClipboardList className="h-5 w-5" /> },
   { label: "حلقاتي",     href: "/classes",       icon: <BookOpen className="h-5 w-5" /> },
   { label: "الطلاب",     href: "/students",      icon: <GraduationCap className="h-5 w-5" /> },
   { label: "الجدول",     href: "/timetable",     icon: <CalendarDays className="h-5 w-5" /> },
