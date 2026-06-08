@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useTransition, useEffect, useRef } from "react"
 import { toast } from "sonner"
-import { ChevronDown, ChevronUp, Save, Loader2, BookOpen } from "lucide-react"
+import { ChevronDown, ChevronUp, Save, Loader2, BookOpen, GraduationCap, BookMarked } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -564,8 +564,19 @@ export function DailySessionClient({
           <Loader2 className="h-7 w-7 animate-spin text-muted-foreground" />
         </div>
       ) : rows.length === 0 ? (
-        <div className="text-center py-16 text-muted-foreground">
-          <p>{classId ? "لا يوجد طلاب في هذه الحلقة" : "اختر حلقة أولاً"}</p>
+        <div className="text-center py-16 text-muted-foreground space-y-3">
+          {classId ? (
+            <>
+              <GraduationCap className="h-12 w-12 mx-auto opacity-30" />
+              <p className="text-base font-medium">لا يوجد طلاب في هذه الحلقة</p>
+              <p className="text-sm">أضف طلاباً للحلقة من صفحة إدارة الطلاب</p>
+            </>
+          ) : (
+            <>
+              <BookMarked className="h-12 w-12 mx-auto opacity-30" />
+              <p className="text-base font-medium">اختر حلقة للبدء</p>
+            </>
+          )}
         </div>
       ) : (
         <>

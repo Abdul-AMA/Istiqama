@@ -10,7 +10,7 @@ import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Plus, Pencil, PowerOff, Power } from "lucide-react"
+import { Plus, Pencil, PowerOff, Power, Tags } from "lucide-react"
 import { toast } from "sonner"
 
 type Category = {
@@ -141,6 +141,14 @@ export function CategoriesClient({ categories }: { categories: Category[] }) {
         </Button>
       </div>
 
+      {categories.length === 0 && (
+        <div className="py-14 text-center text-muted-foreground rounded-lg border space-y-2">
+          <Tags className="h-10 w-10 mx-auto opacity-30" />
+          <p className="text-sm font-medium">لا توجد فئات رسائل بعد</p>
+          <p className="text-xs">اضغط «فئة جديدة» لإضافة أول فئة</p>
+        </div>
+      )}
+
       <div className="grid gap-3">
         {categories.map((cat) => (
           <Card key={cat.id} className={cat.isActive ? "" : "opacity-60"}>
@@ -198,7 +206,7 @@ export function CategoriesClient({ categories }: { categories: Category[] }) {
 
       {/* Create dialog */}
       <Dialog open={showCreate} onOpenChange={setShowCreate}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>فئة رسائل جديدة</DialogTitle>
           </DialogHeader>
@@ -208,7 +216,7 @@ export function CategoriesClient({ categories }: { categories: Category[] }) {
 
       {/* Edit dialog */}
       <Dialog open={!!editing} onOpenChange={(o) => !o && setEditing(null)}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>تعديل الفئة</DialogTitle>
           </DialogHeader>

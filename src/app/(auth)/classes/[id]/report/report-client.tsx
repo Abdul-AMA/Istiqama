@@ -132,7 +132,7 @@ export function ReportClient({
         <Button onClick={applyFilter} className="bg-green-600 hover:bg-green-700 text-white">
           تطبيق
         </Button>
-        <Button variant="outline" className="gap-2 mr-auto" onClick={downloadCSV}>
+        <Button variant="outline" className="gap-2 ms-auto" onClick={downloadCSV}>
           <Download className="h-4 w-4" />
           تصدير CSV
         </Button>
@@ -168,104 +168,107 @@ export function ReportClient({
         </CardHeader>
         <CardContent className="p-0">
           {students.length === 0 ? (
-            <p className="text-sm text-muted-foreground py-8 text-center">
-              لا يوجد طلاب
-            </p>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b bg-muted/30">
-                    <th className="text-right px-4 py-3 font-medium">الطالب</th>
-                    <th className="text-center px-3 py-3 font-medium whitespace-nowrap">
-                      إجمالي الصفحات
-                    </th>
-                    <th className="text-center px-3 py-3 font-medium whitespace-nowrap">
-                      نسبة الحضور
-                    </th>
-                    <th className="text-center px-3 py-3 font-medium whitespace-nowrap">
-                      متوسط التقييم
-                    </th>
-                    <th className="text-center px-3 py-3 font-medium whitespace-nowrap">
-                      سرعة الحفظ
-                    </th>
-                    <th className="text-center px-3 py-3 font-medium whitespace-nowrap">
-                      آخر جلسة
-                    </th>
-                    <th className="text-center px-3 py-3 font-medium">الحالة</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y">
-                  {students.map((s) => (
-                    <tr key={s.id} className="hover:bg-muted/20 transition-colors">
-                      <td className="px-4 py-3">
-                        <div className="flex items-center gap-3">
-                          <Avatar className="h-9 w-9 shrink-0">
-                            <AvatarImage
-                              src={s.photoUrl ?? undefined}
-                              alt={s.fullName}
-                            />
-                            <AvatarFallback className="bg-green-100 text-green-800 text-xs font-semibold">
-                              {s.fullName.slice(0, 2)}
-                            </AvatarFallback>
-                          </Avatar>
-                          <span className="font-medium">{s.fullName}</span>
-                        </div>
-                      </td>
-                      <td className="px-3 py-3 text-center">{s.totalPages}</td>
-                      <td className="px-3 py-3 text-center">
-                        {s.attendanceRate != null ? (
-                          <span
-                            className={
-                              s.attendanceRate < 70
-                                ? "text-red-600 font-medium"
-                                : "text-green-700 font-medium"
-                            }
-                          >
-                            {s.attendanceRate}%
-                          </span>
-                        ) : (
-                          <span className="text-muted-foreground">—</span>
-                        )}
-                      </td>
-                      <td className="px-3 py-3 text-center">
-                        {s.avgRating != null ? (
-                          <span>{s.avgRating.toFixed(1)}</span>
-                        ) : (
-                          <span className="text-muted-foreground">—</span>
-                        )}
-                      </td>
-                      <td className="px-3 py-3 text-center">
-                        <span className="text-muted-foreground">
-                          {s.velocity > 0
-                            ? `${s.velocity.toFixed(1)} ص/أ`
-                            : "—"}
-                        </span>
-                      </td>
-                      <td className="px-3 py-3 text-center">
-                        <span className="text-muted-foreground text-xs">
-                          {s.lastSessionDate ?? "—"}
-                        </span>
-                      </td>
-                      <td className="px-3 py-3 text-center">
-                        <Badge
-                          variant="secondary"
-                          className={
-                            s.status === "ACTIVE"
-                              ? "bg-green-100 text-green-800"
-                              : s.status === "GUEST"
-                              ? "bg-orange-100 text-orange-800"
-                              : ""
-                          }
-                        >
-                          {STATUS_LABELS[s.status] ?? s.status}
-                        </Badge>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+            <div className="py-10 text-center text-muted-foreground text-sm">
+              لا يوجد طلاب في هذه الحلقة
             </div>
+          ) : (
+            <>
+              {/* Mobile cards */}
+              <div className="md:hidden divide-y">
+                {students.map((s) => (
+                  <div key={s.id} className="px-4 py-3 space-y-1.5">
+                    <div className="flex items-center gap-3">
+                      <Avatar className="h-8 w-8 shrink-0">
+                        <AvatarImage src={s.photoUrl ?? undefined} alt={s.fullName} />
+                        <AvatarFallback className="bg-green-100 text-green-800 text-xs font-semibold">
+                          {s.fullName.slice(0, 2)}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium text-sm truncate">{s.fullName}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {s.lastSessionDate ?? "لا توجد جلسات"}
+                        </p>
+                      </div>
+                      <Badge variant="secondary" className={
+                        s.status === "ACTIVE" ? "bg-green-100 text-green-800" :
+                        s.status === "GUEST" ? "bg-orange-100 text-orange-800" : ""
+                      }>
+                        {STATUS_LABELS[s.status] ?? s.status}
+                      </Badge>
+                    </div>
+                    <div className="flex gap-4 text-xs text-muted-foreground">
+                      <span>{s.totalPages} صفحة</span>
+                      {s.attendanceRate != null && (
+                        <span className={s.attendanceRate < 70 ? "text-red-600 font-medium" : "text-green-700"}>
+                          {s.attendanceRate}% حضور
+                        </span>
+                      )}
+                      {s.avgRating != null && <span>تقييم {s.avgRating.toFixed(1)}</span>}
+                      {s.velocity > 0 && <span>{s.velocity.toFixed(1)} ص/أ</span>}
+                    </div>
+                  </div>
+                ))}
+              </div>
+              {/* Desktop table */}
+              <div className="hidden md:block overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b bg-muted/30">
+                      <th className="text-right px-4 py-3 font-medium">الطالب</th>
+                      <th className="text-center px-3 py-3 font-medium whitespace-nowrap">إجمالي الصفحات</th>
+                      <th className="text-center px-3 py-3 font-medium whitespace-nowrap">نسبة الحضور</th>
+                      <th className="text-center px-3 py-3 font-medium whitespace-nowrap">متوسط التقييم</th>
+                      <th className="text-center px-3 py-3 font-medium whitespace-nowrap">سرعة الحفظ</th>
+                      <th className="text-center px-3 py-3 font-medium whitespace-nowrap">آخر جلسة</th>
+                      <th className="text-center px-3 py-3 font-medium">الحالة</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y">
+                    {students.map((s) => (
+                      <tr key={s.id} className="hover:bg-muted/20 transition-colors">
+                        <td className="px-4 py-3">
+                          <div className="flex items-center gap-3">
+                            <Avatar className="h-9 w-9 shrink-0">
+                              <AvatarImage src={s.photoUrl ?? undefined} alt={s.fullName} />
+                              <AvatarFallback className="bg-green-100 text-green-800 text-xs font-semibold">
+                                {s.fullName.slice(0, 2)}
+                              </AvatarFallback>
+                            </Avatar>
+                            <span className="font-medium">{s.fullName}</span>
+                          </div>
+                        </td>
+                        <td className="px-3 py-3 text-center">{s.totalPages}</td>
+                        <td className="px-3 py-3 text-center">
+                          {s.attendanceRate != null ? (
+                            <span className={s.attendanceRate < 70 ? "text-red-600 font-medium" : "text-green-700 font-medium"}>
+                              {s.attendanceRate}%
+                            </span>
+                          ) : <span className="text-muted-foreground">—</span>}
+                        </td>
+                        <td className="px-3 py-3 text-center">
+                          {s.avgRating != null ? <span>{s.avgRating.toFixed(1)}</span> : <span className="text-muted-foreground">—</span>}
+                        </td>
+                        <td className="px-3 py-3 text-center">
+                          <span className="text-muted-foreground">{s.velocity > 0 ? `${s.velocity.toFixed(1)} ص/أ` : "—"}</span>
+                        </td>
+                        <td className="px-3 py-3 text-center">
+                          <span className="text-muted-foreground text-xs">{s.lastSessionDate ?? "—"}</span>
+                        </td>
+                        <td className="px-3 py-3 text-center">
+                          <Badge variant="secondary" className={
+                            s.status === "ACTIVE" ? "bg-green-100 text-green-800" :
+                            s.status === "GUEST" ? "bg-orange-100 text-orange-800" : ""
+                          }>
+                            {STATUS_LABELS[s.status] ?? s.status}
+                          </Badge>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </>
           )}
         </CardContent>
       </Card>

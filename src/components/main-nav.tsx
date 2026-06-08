@@ -19,6 +19,7 @@ import {
   MessageSquare,
   FileText,
   Tags,
+  DatabaseBackup,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Sheet, SheetContent } from "@/components/ui/sheet"
@@ -42,6 +43,7 @@ const principalNav: NavItem[] = [
   { label: "المعلمون",       href: "/admin/users", icon: <UserCog className="h-5 w-5" /> },
   { label: "الضيوف",         href: "/admin/guests", icon: <UserCheck className="h-5 w-5" /> },
   { label: "فئات الرسائل",   href: "/admin/message-categories", icon: <Tags className="h-5 w-5" /> },
+  { label: "النسخ الاحتياطي", href: "/admin/backup",             icon: <DatabaseBackup className="h-5 w-5" /> },
 ]
 
 const teacherNav: NavItem[] = [

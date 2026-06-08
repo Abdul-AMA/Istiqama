@@ -5,7 +5,7 @@ import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { ArrowRight } from "lucide-react"
+import { ArrowRight, BookOpen } from "lucide-react"
 import { HistoryFilters } from "./history-filters"
 
 type Props = {
@@ -177,8 +177,12 @@ export default async function StudentHistoryPage({ params, searchParams }: Props
       {/* Timeline */}
       {hifzSessions.length === 0 && (
         <Card>
-          <CardContent className="py-12 text-center text-muted-foreground">
-            لا توجد جلسات في هذا النطاق الزمني
+          <CardContent className="py-14 text-center text-muted-foreground space-y-2">
+            <BookOpen className="h-10 w-10 mx-auto opacity-30" />
+            <p className="text-sm font-medium">لم يتم تسجيل أي جلسات بعد</p>
+            {(sp.from || sp.to || sp.type) && (
+              <p className="text-xs">جرب تغيير نطاق التواريخ أو نوع التصفية</p>
+            )}
           </CardContent>
         </Card>
       )}

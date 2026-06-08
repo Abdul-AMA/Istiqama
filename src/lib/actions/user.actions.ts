@@ -46,9 +46,13 @@ export async function createTeacher(
   if (exists) return { error: "البريد الإلكتروني مستخدم مسبقاً" }
 
   const passwordHash = await bcrypt.hash(password, 12)
-  await prisma.user.create({
-    data: { fullName, email, phone, passwordHash, role: "TEACHER", isActive: true },
-  })
+  try {
+    await prisma.user.create({
+      data: { fullName, email, phone, passwordHash, role: "TEACHER", isActive: true },
+    })
+  } catch {
+    return { error: "حدث خطأ أثناء إنشاء الحساب — يرجى المحاولة مرة أخرى" }
+  }
 
   revalidatePath("/admin/users")
   return { success: true }

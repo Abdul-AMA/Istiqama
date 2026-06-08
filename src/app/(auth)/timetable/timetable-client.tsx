@@ -133,7 +133,7 @@ export function TimetableClient({
             إضافة حصة
           </Button>
           {/* Color legend */}
-          <div className="flex flex-wrap gap-2 mr-2">
+          <div className="flex flex-wrap gap-2 ms-2">
             {[...new Map(classes.map((c) => [c.teacher.id, c.teacher])).values()].map(
               (teacher) => {
                 const color = teacherColorMap[teacher.id]
@@ -271,7 +271,7 @@ export function TimetableClient({
 
       {/* Add slot dialog */}
       <Dialog open={addOpen} onOpenChange={setAddOpen}>
-        <DialogContent>
+        <DialogContent className="max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>إضافة حصة جديدة</DialogTitle>
           </DialogHeader>
@@ -284,7 +284,7 @@ export function TimetableClient({
 
       {/* Edit slot dialog — keyed by slot.id to force remount */}
       <Dialog open={!!editSlot} onOpenChange={(o) => !o && setEditSlot(null)}>
-        <DialogContent>
+        <DialogContent className="max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>تعديل الحصة</DialogTitle>
           </DialogHeader>
@@ -301,7 +301,7 @@ export function TimetableClient({
 
       {/* Delete confirmation dialog */}
       <Dialog open={!!delSlot} onOpenChange={(o) => !o && setDelSlot(null)}>
-        <DialogContent>
+        <DialogContent className="max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>حذف الحصة</DialogTitle>
           </DialogHeader>

@@ -134,6 +134,7 @@ export async function saveDailySession(input: SaveSessionInput): Promise<SaveSes
 
   const date = new Date(dateStr)
 
+  try {
   await prisma.$transaction(async (tx) => {
     for (const entry of entries) {
       const { studentId, attendance, attendanceNotes, generalNotes, recitations } = entry
@@ -212,6 +213,10 @@ export async function saveDailySession(input: SaveSessionInput): Promise<SaveSes
       }
     }
   })
+  } catch (err) {
+    console.error("saveDailySession error:", err)
+    return { error: "حدث خطأ أثناء حفظ الجلسة — يرجى المحاولة مرة أخرى" }
+  }
 
   revalidatePath("/daily")
   revalidatePath(`/classes/${classId}`)

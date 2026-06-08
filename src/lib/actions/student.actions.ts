@@ -76,23 +76,27 @@ export async function createStudent(
   if (!parsed.success) return { error: parsed.error.errors[0].message }
 
   const data = parsed.data
-  await prisma.student.create({
-    data: {
-      fullName:          data.fullName,
-      gender:            data.gender,
-      dateOfBirth:       data.dateOfBirth ? new Date(data.dateOfBirth) : null,
-      nationalId:        data.nationalId || null,
-      schoolGrade:       data.schoolGrade || null,
-      neighborhood:      data.neighborhood || null,
-      guardianName:      data.guardianName || null,
-      guardianPhone:     data.guardianPhone || null,
-      secondaryPhone:    data.secondaryPhone || null,
-      previousHifzPages: data.previousHifzPages ?? null,
-      classId:           data.classId || null,
-      notes:             data.notes || null,
-      status:            "ACTIVE",
-    },
-  })
+  try {
+    await prisma.student.create({
+      data: {
+        fullName:          data.fullName,
+        gender:            data.gender,
+        dateOfBirth:       data.dateOfBirth ? new Date(data.dateOfBirth) : null,
+        nationalId:        data.nationalId || null,
+        schoolGrade:       data.schoolGrade || null,
+        neighborhood:      data.neighborhood || null,
+        guardianName:      data.guardianName || null,
+        guardianPhone:     data.guardianPhone || null,
+        secondaryPhone:    data.secondaryPhone || null,
+        previousHifzPages: data.previousHifzPages ?? null,
+        classId:           data.classId || null,
+        notes:             data.notes || null,
+        status:            "ACTIVE",
+      },
+    })
+  } catch {
+    return { error: "حدث خطأ أثناء إضافة الطالب — يرجى المحاولة مرة أخرى" }
+  }
 
   revalidatePath("/students")
   if (data.classId) revalidatePath(`/classes/${data.classId}`)

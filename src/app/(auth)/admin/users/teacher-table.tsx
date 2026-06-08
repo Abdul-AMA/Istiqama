@@ -62,7 +62,7 @@ export function TeacherTable({ teachers }: { teachers: Teacher[] }) {
           إضافة معلم
         </Button>
         <Dialog open={createOpen} onOpenChange={setCreateOpen}>
-          <DialogContent>
+          <DialogContent className="max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>إضافة معلم جديد</DialogTitle>
             </DialogHeader>
@@ -73,66 +73,97 @@ export function TeacherTable({ teachers }: { teachers: Teacher[] }) {
         </Dialog>
       </div>
 
-      <div className="rounded-lg border overflow-x-auto">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>الاسم</TableHead>
-              <TableHead>البريد الإلكتروني</TableHead>
-              <TableHead>الجوال</TableHead>
-              <TableHead>الحلقات</TableHead>
-              <TableHead>الحالة</TableHead>
-              <TableHead></TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {teachers.length === 0 && (
-              <TableRow>
-                <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
-                  لا يوجد معلمون بعد
-                </TableCell>
-              </TableRow>
-            )}
+      {teachers.length === 0 ? (
+        <div className="rounded-lg border py-12 text-center text-muted-foreground">
+          <p className="text-sm">لا يوجد معلمون بعد — أضف معلماً جديداً</p>
+        </div>
+      ) : (
+        <>
+          {/* Mobile cards */}
+          <div className="md:hidden space-y-3">
             {teachers.map((t) => (
-              <TableRow key={t.id}>
-                <TableCell className="font-medium">{t.fullName}</TableCell>
-                <TableCell className="text-sm" dir="ltr">{t.email}</TableCell>
-                <TableCell className="text-sm" dir="ltr">{t.phone ?? "—"}</TableCell>
-                <TableCell>{t._count.classes}</TableCell>
-                <TableCell>
+              <div key={t.id} className="rounded-lg border bg-card p-4 space-y-3">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="font-medium truncate">{t.fullName}</p>
+                    <p className="text-sm text-muted-foreground truncate" dir="ltr">{t.email}</p>
+                    {t.phone && <p className="text-xs text-muted-foreground" dir="ltr">{t.phone}</p>}
+                  </div>
                   <Badge variant={t.isActive ? "default" : "secondary"}>
                     {t.isActive ? "نشط" : "معطل"}
                   </Badge>
-                </TableCell>
-                <TableCell>
-                  <div className="flex items-center gap-1 justify-end">
-                    <Link href={`/teachers/${t.id}`}>
-                      <Button variant="ghost" size="icon" title="عرض الملف">
-                        <Eye className="h-4 w-4" />
-                      </Button>
-                    </Link>
-                    <Button variant="ghost" size="icon" onClick={() => setEditTeacher(t)} title="تعديل">
-                      <Pencil className="h-4 w-4" />
+                </div>
+                <div className="flex items-center gap-1">
+                  <Link href={`/teachers/${t.id}`}>
+                    <Button variant="ghost" size="icon" className="h-9 w-9" title="عرض الملف">
+                      <Eye className="h-4 w-4" />
                     </Button>
-                    <Button variant="ghost" size="icon" onClick={() => setResetTeacher(t)} title="إعادة تعيين كلمة المرور">
-                      <KeyRound className="h-4 w-4" />
-                    </Button>
-                    <Button variant="ghost" size="icon" onClick={() => handleToggle(t)} title={t.isActive ? "تعطيل" : "تفعيل"}>
-                      {t.isActive
-                        ? <ToggleRight className="h-5 w-5 text-green-600" />
-                        : <ToggleLeft className="h-5 w-5 text-muted-foreground" />
-                      }
-                    </Button>
-                  </div>
-                </TableCell>
-              </TableRow>
+                  </Link>
+                  <Button variant="ghost" size="icon" className="h-9 w-9" onClick={() => setEditTeacher(t)}>
+                    <Pencil className="h-4 w-4" />
+                  </Button>
+                  <Button variant="ghost" size="icon" className="h-9 w-9" onClick={() => setResetTeacher(t)}>
+                    <KeyRound className="h-4 w-4" />
+                  </Button>
+                  <Button variant="ghost" size="icon" className="h-9 w-9" onClick={() => handleToggle(t)}>
+                    {t.isActive
+                      ? <ToggleRight className="h-5 w-5 text-green-600" />
+                      : <ToggleLeft className="h-5 w-5 text-muted-foreground" />}
+                  </Button>
+                </div>
+              </div>
             ))}
-          </TableBody>
-        </Table>
-      </div>
+          </div>
+
+          {/* Desktop table */}
+          <div className="hidden md:block rounded-lg border overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>الاسم</TableHead>
+                  <TableHead>البريد الإلكتروني</TableHead>
+                  <TableHead>الجوال</TableHead>
+                  <TableHead>الحلقات</TableHead>
+                  <TableHead>الحالة</TableHead>
+                  <TableHead></TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {teachers.map((t) => (
+                  <TableRow key={t.id}>
+                    <TableCell className="font-medium">{t.fullName}</TableCell>
+                    <TableCell className="text-sm" dir="ltr">{t.email}</TableCell>
+                    <TableCell className="text-sm" dir="ltr">{t.phone ?? "—"}</TableCell>
+                    <TableCell>{t._count.classes}</TableCell>
+                    <TableCell>
+                      <Badge variant={t.isActive ? "default" : "secondary"}>
+                        {t.isActive ? "نشط" : "معطل"}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-1 justify-end">
+                        <Link href={`/teachers/${t.id}`}>
+                          <Button variant="ghost" size="icon" title="عرض الملف"><Eye className="h-4 w-4" /></Button>
+                        </Link>
+                        <Button variant="ghost" size="icon" onClick={() => setEditTeacher(t)} title="تعديل"><Pencil className="h-4 w-4" /></Button>
+                        <Button variant="ghost" size="icon" onClick={() => setResetTeacher(t)} title="إعادة تعيين"><KeyRound className="h-4 w-4" /></Button>
+                        <Button variant="ghost" size="icon" onClick={() => handleToggle(t)}>
+                          {t.isActive
+                            ? <ToggleRight className="h-5 w-5 text-green-600" />
+                            : <ToggleLeft className="h-5 w-5 text-muted-foreground" />}
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        </>
+      )}
 
       <Dialog open={!!editTeacher} onOpenChange={(o) => !o && setEditTeacher(null)}>
-        <DialogContent>
+        <DialogContent className="max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>تعديل بيانات المعلم</DialogTitle>
           </DialogHeader>
@@ -146,7 +177,7 @@ export function TeacherTable({ teachers }: { teachers: Teacher[] }) {
       </Dialog>
 
       <Dialog open={!!resetTeacher} onOpenChange={(o) => !o && setResetTeacher(null)}>
-        <DialogContent>
+        <DialogContent className="max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>إعادة تعيين كلمة المرور</DialogTitle>
           </DialogHeader>

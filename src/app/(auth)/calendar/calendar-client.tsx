@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
-import { ChevronRight, ChevronLeft, Loader2 } from "lucide-react"
+import { ChevronRight, ChevronLeft, Loader2, CalendarDays } from "lucide-react"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
@@ -281,7 +281,7 @@ export function CalendarClient({
         <Label className="text-sm">الحلقة</Label>
         {classesLoading ? (
           <div className="h-11 flex items-center px-3 border rounded-md text-sm text-muted-foreground">
-            <Loader2 className="h-4 w-4 animate-spin ml-2" /> جارٍ التحميل…
+            <Loader2 className="h-4 w-4 animate-spin me-2" /> جارٍ التحميل…
           </div>
         ) : (
           <Select value={classId} onValueChange={(v) => setClassId(v ?? "")}>
@@ -303,7 +303,10 @@ export function CalendarClient({
       </div>
 
       {!classId ? (
-        <div className="text-center py-16 text-muted-foreground text-sm">اختر حلقة لعرض التقويم</div>
+        <div className="text-center py-16 text-muted-foreground space-y-2">
+          <CalendarDays className="h-12 w-12 mx-auto opacity-30" />
+          <p className="text-sm font-medium">اختر حلقة لعرض التقويم</p>
+        </div>
       ) : (
         <div className="rounded-xl border bg-card p-4 space-y-4">
           {/* Month navigation */}

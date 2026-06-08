@@ -240,7 +240,7 @@ async function TeacherDashboard({ userId, userName }: { userId: string; userName
             <CardTitle className="text-base">
               الطلاب بحاجة للمتابعة
               {atRiskStudents.length > 0 && (
-                <Badge variant="destructive" className="mr-2 text-xs">
+                <Badge variant="destructive" className="ms-2 text-xs">
                   {atRiskStudents.length}
                 </Badge>
               )}
@@ -249,9 +249,10 @@ async function TeacherDashboard({ userId, userName }: { userId: string; userName
         </CardHeader>
         <CardContent>
           {atRiskStudents.length === 0 ? (
-            <p className="text-sm text-muted-foreground py-4 text-center">
-              جميع الطلاب على المسار 👍
-            </p>
+            <div className="py-8 text-center text-muted-foreground">
+              <UserCheck className="h-10 w-10 mx-auto mb-2 opacity-40" />
+              <p className="text-sm font-medium">جميع الطلاب على المسار الصحيح 🎉</p>
+            </div>
           ) : (
             <div className="divide-y">
               {atRiskStudents.map((s) => (
@@ -564,80 +565,83 @@ async function PrincipalDashboard({ userName }: { userName: string }) {
           <CardTitle className="text-base">تقدم الحلقات</CardTitle>
         </CardHeader>
         <CardContent className="p-0">
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b bg-muted/30">
-                  <th className="text-right px-4 py-3 font-medium">الحلقة</th>
-                  <th className="text-right px-4 py-3 font-medium">المعلم</th>
-                  <th className="text-center px-3 py-3 font-medium">الطلاب</th>
-                  <th className="text-center px-3 py-3 font-medium whitespace-nowrap">متوسط الصفحات</th>
-                  <th className="text-center px-3 py-3 font-medium whitespace-nowrap">نسبة الحضور</th>
-                  <th className="text-center px-3 py-3 font-medium whitespace-nowrap">أيام مهملة</th>
-                  <th className="text-center px-3 py-3 font-medium">تقرير</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y">
+          {classProgress.length === 0 ? (
+            <div className="py-10 text-center text-muted-foreground text-sm">لا توجد حلقات نشطة</div>
+          ) : (
+            <>
+              {/* Mobile cards */}
+              <div className="md:hidden divide-y">
                 {classProgress.map((cls) => (
-                  <tr key={cls.id} className="hover:bg-muted/20 transition-colors">
-                    <td className="px-4 py-3">
-                      <Link
-                        href={`/classes/${cls.id}`}
-                        className="font-medium hover:underline"
-                      >
-                        {cls.name}
-                      </Link>
-                    </td>
-                    <td className="px-4 py-3 text-muted-foreground">{cls.teacherName}</td>
-                    <td className="px-3 py-3 text-center">{cls.rosterCount}</td>
-                    <td className="px-3 py-3 text-center">{cls.avgPages} ص</td>
-                    <td className="px-3 py-3 text-center">
-                      {cls.attRate != null ? (
-                        <span
-                          className={
-                            cls.attRate < 70
-                              ? "text-red-600 font-medium"
-                              : "text-green-700"
-                          }
-                        >
-                          {cls.attRate}%
+                  <div key={cls.id} className="px-4 py-3 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <Link href={`/classes/${cls.id}`} className="font-medium hover:underline">{cls.name}</Link>
+                      <Link href={`/classes/${cls.id}/report`} className="text-xs text-green-700 hover:underline">تقرير</Link>
+                    </div>
+                    <p className="text-xs text-muted-foreground">{cls.teacherName}</p>
+                    <div className="flex gap-4 text-xs">
+                      <span>{cls.rosterCount} طالب</span>
+                      <span>{cls.avgPages} ص متوسط</span>
+                      {cls.attRate != null && (
+                        <span className={cls.attRate < 70 ? "text-red-600 font-medium" : "text-green-700"}>
+                          {cls.attRate}% حضور
                         </span>
-                      ) : (
-                        <span className="text-muted-foreground">—</span>
                       )}
-                    </td>
-                    <td className="px-3 py-3 text-center">
-                      {cls.missedDays > 0 ? (
-                        <Badge variant="destructive" className="text-xs">
-                          {cls.missedDays}
-                        </Badge>
-                      ) : (
-                        <span className="text-green-600 text-xs">0</span>
+                      {cls.missedDays > 0 && (
+                        <Badge variant="destructive" className="text-xs">{cls.missedDays} أيام مهملة</Badge>
                       )}
-                    </td>
-                    <td className="px-3 py-3 text-center">
-                      <Link
-                        href={`/classes/${cls.id}/report`}
-                        className="text-xs text-green-700 hover:underline"
-                      >
-                        عرض
-                      </Link>
-                    </td>
-                  </tr>
+                    </div>
+                  </div>
                 ))}
-                {classProgress.length === 0 && (
-                  <tr>
-                    <td
-                      colSpan={7}
-                      className="px-4 py-8 text-center text-muted-foreground"
-                    >
-                      لا توجد حلقات نشطة
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
+              </div>
+              {/* Desktop table */}
+              <div className="hidden md:block overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b bg-muted/30">
+                      <th className="text-right px-4 py-3 font-medium">الحلقة</th>
+                      <th className="text-right px-4 py-3 font-medium">المعلم</th>
+                      <th className="text-center px-3 py-3 font-medium">الطلاب</th>
+                      <th className="text-center px-3 py-3 font-medium whitespace-nowrap">متوسط الصفحات</th>
+                      <th className="text-center px-3 py-3 font-medium whitespace-nowrap">نسبة الحضور</th>
+                      <th className="text-center px-3 py-3 font-medium whitespace-nowrap">أيام مهملة</th>
+                      <th className="text-center px-3 py-3 font-medium">تقرير</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y">
+                    {classProgress.map((cls) => (
+                      <tr key={cls.id} className="hover:bg-muted/20 transition-colors">
+                        <td className="px-4 py-3">
+                          <Link href={`/classes/${cls.id}`} className="font-medium hover:underline">{cls.name}</Link>
+                        </td>
+                        <td className="px-4 py-3 text-muted-foreground">{cls.teacherName}</td>
+                        <td className="px-3 py-3 text-center">{cls.rosterCount}</td>
+                        <td className="px-3 py-3 text-center">{cls.avgPages} ص</td>
+                        <td className="px-3 py-3 text-center">
+                          {cls.attRate != null ? (
+                            <span className={cls.attRate < 70 ? "text-red-600 font-medium" : "text-green-700"}>
+                              {cls.attRate}%
+                            </span>
+                          ) : (
+                            <span className="text-muted-foreground">—</span>
+                          )}
+                        </td>
+                        <td className="px-3 py-3 text-center">
+                          {cls.missedDays > 0 ? (
+                            <Badge variant="destructive" className="text-xs">{cls.missedDays}</Badge>
+                          ) : (
+                            <span className="text-green-600 text-xs">0</span>
+                          )}
+                        </td>
+                        <td className="px-3 py-3 text-center">
+                          <Link href={`/classes/${cls.id}/report`} className="text-xs text-green-700 hover:underline">عرض</Link>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </>
+          )}
         </CardContent>
       </Card>
 
@@ -649,7 +653,7 @@ async function PrincipalDashboard({ userName }: { userName: string }) {
             <CardTitle className="text-base">
               الطلاب بحاجة للمتابعة
               {atRiskAll.length > 0 && (
-                <Badge variant="destructive" className="mr-2 text-xs">
+                <Badge variant="destructive" className="ms-2 text-xs">
                   {atRiskAll.length}
                 </Badge>
               )}
@@ -658,9 +662,10 @@ async function PrincipalDashboard({ userName }: { userName: string }) {
         </CardHeader>
         <CardContent>
           {atRiskAll.length === 0 ? (
-            <p className="text-sm text-muted-foreground py-4 text-center">
-              جميع الطلاب على المسار 👍
-            </p>
+            <div className="py-8 text-center text-muted-foreground">
+              <UserCheck className="h-10 w-10 mx-auto mb-2 opacity-40" />
+              <p className="text-sm font-medium">جميع الطلاب على المسار الصحيح 🎉</p>
+            </div>
           ) : (
             <div className="divide-y">
               {atRiskAll.map((s) => (
@@ -712,59 +717,65 @@ async function PrincipalDashboard({ userName }: { userName: string }) {
           <CardTitle className="text-base">نشاط المعلمين</CardTitle>
         </CardHeader>
         <CardContent className="p-0">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b bg-muted/30">
-                <th className="text-right px-4 py-3 font-medium">المعلم</th>
-                <th className="text-center px-3 py-3 font-medium whitespace-nowrap">
-                  جلسات هذا الأسبوع
-                </th>
-                <th className="text-center px-3 py-3 font-medium whitespace-nowrap">
-                  آخر نشاط
-                </th>
-              </tr>
-            </thead>
-            <tbody className="divide-y">
-              {teachers.map((t) => {
-                const sessions = sessionsByTeacher.get(t.id) ?? 0
-                const lastAct = lastActivityMap.get(t.id) ?? null
-                return (
-                  <tr key={t.id} className="hover:bg-muted/20 transition-colors">
-                    <td className="px-4 py-3">
-                      <Link
-                        href={`/teachers/${t.id}`}
-                        className="font-medium hover:underline"
-                      >
-                        {t.fullName}
-                      </Link>
-                    </td>
-                    <td className="px-3 py-3 text-center">
-                      {sessions > 0 ? (
-                        <Badge className="bg-green-100 text-green-800 text-xs">
-                          {sessions}
-                        </Badge>
-                      ) : (
-                        <span className="text-muted-foreground">0</span>
-                      )}
-                    </td>
-                    <td className="px-3 py-3 text-center text-muted-foreground text-xs">
-                      {lastAct ?? "—"}
-                    </td>
-                  </tr>
-                )
-              })}
-              {teachers.length === 0 && (
-                <tr>
-                  <td
-                    colSpan={3}
-                    className="px-4 py-8 text-center text-muted-foreground"
-                  >
-                    لا يوجد معلمون
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
+          {teachers.length === 0 ? (
+            <div className="py-10 text-center text-muted-foreground text-sm">لا يوجد معلمون</div>
+          ) : (
+            <>
+              {/* Mobile cards */}
+              <div className="md:hidden divide-y">
+                {teachers.map((t) => {
+                  const sessions = sessionsByTeacher.get(t.id) ?? 0
+                  const lastAct = lastActivityMap.get(t.id) ?? null
+                  return (
+                    <div key={t.id} className="px-4 py-3 flex items-center justify-between gap-3">
+                      <Link href={`/teachers/${t.id}`} className="font-medium hover:underline text-sm">{t.fullName}</Link>
+                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                        {sessions > 0 ? (
+                          <Badge className="bg-green-100 text-green-800 text-xs">{sessions} جلسة</Badge>
+                        ) : (
+                          <span>0 جلسات</span>
+                        )}
+                        <span>{lastAct ?? "—"}</span>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+              {/* Desktop table */}
+              <div className="hidden md:block">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b bg-muted/30">
+                      <th className="text-right px-4 py-3 font-medium">المعلم</th>
+                      <th className="text-center px-3 py-3 font-medium whitespace-nowrap">جلسات هذا الأسبوع</th>
+                      <th className="text-center px-3 py-3 font-medium whitespace-nowrap">آخر نشاط</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y">
+                    {teachers.map((t) => {
+                      const sessions = sessionsByTeacher.get(t.id) ?? 0
+                      const lastAct = lastActivityMap.get(t.id) ?? null
+                      return (
+                        <tr key={t.id} className="hover:bg-muted/20 transition-colors">
+                          <td className="px-4 py-3">
+                            <Link href={`/teachers/${t.id}`} className="font-medium hover:underline">{t.fullName}</Link>
+                          </td>
+                          <td className="px-3 py-3 text-center">
+                            {sessions > 0 ? (
+                              <Badge className="bg-green-100 text-green-800 text-xs">{sessions}</Badge>
+                            ) : (
+                              <span className="text-muted-foreground">0</span>
+                            )}
+                          </td>
+                          <td className="px-3 py-3 text-center text-muted-foreground text-xs">{lastAct ?? "—"}</td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </>
+          )}
         </CardContent>
       </Card>
     </div>

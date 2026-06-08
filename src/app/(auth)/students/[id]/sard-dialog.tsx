@@ -61,7 +61,7 @@ export function SardDialog({
       </Button>
 
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent>
+        <DialogContent className="max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>تسجيل سرد جديد</DialogTitle>
           </DialogHeader>

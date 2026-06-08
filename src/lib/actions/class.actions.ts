@@ -36,7 +36,11 @@ export async function createClass(
   const parsed = classSchema.safeParse(raw)
   if (!parsed.success) return { error: parsed.error.errors[0].message }
 
-  await prisma.class.create({ data: { ...parsed.data, status: "ACTIVE" } })
+  try {
+    await prisma.class.create({ data: { ...parsed.data, status: "ACTIVE" } })
+  } catch {
+    return { error: "حدث خطأ أثناء إنشاء الحلقة — يرجى المحاولة مرة أخرى" }
+  }
   revalidatePath("/classes")
   return { success: true }
 }
@@ -60,7 +64,11 @@ export async function updateClass(
   const parsed = classSchema.safeParse(raw)
   if (!parsed.success) return { error: parsed.error.errors[0].message }
 
-  await prisma.class.update({ where: { id }, data: parsed.data })
+  try {
+    await prisma.class.update({ where: { id }, data: parsed.data })
+  } catch {
+    return { error: "حدث خطأ أثناء تعديل الحلقة — يرجى المحاولة مرة أخرى" }
+  }
   revalidatePath("/classes")
   revalidatePath(`/classes/${id}`)
   return { success: true }

@@ -22,7 +22,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { Plus, Pencil, Users } from "lucide-react"
+import { Plus, Pencil, Users, BookOpen } from "lucide-react"
 import {
   createClass,
   updateClass,
@@ -65,7 +65,7 @@ export function ClassesClient({
             إضافة حلقة
           </Button>
           <Dialog open={createOpen} onOpenChange={setCreateOpen}>
-            <DialogContent>
+            <DialogContent className="max-h-[90vh] overflow-y-auto">
               <DialogHeader>
                 <DialogTitle>إضافة حلقة جديدة</DialogTitle>
               </DialogHeader>
@@ -80,8 +80,12 @@ export function ClassesClient({
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
         {classes.length === 0 && (
-          <div className="col-span-full text-center text-muted-foreground py-12">
-            {isPrincipal ? "لا توجد حلقات بعد — أضف حلقة جديدة" : "لم تُعيَّن لك حلقات بعد"}
+          <div className="col-span-full py-16 text-center text-muted-foreground space-y-2">
+            <BookOpen className="h-12 w-12 mx-auto opacity-30" />
+            <p className="text-base font-medium">
+              {isPrincipal ? "لا توجد حلقات بعد" : "لم تُعيَّن لك حلقات بعد"}
+            </p>
+            {isPrincipal && <p className="text-sm">اضغط «إضافة حلقة» للبدء</p>}
           </div>
         )}
         {classes.map((cls) => (
@@ -130,7 +134,7 @@ export function ClassesClient({
       </div>
 
       <Dialog open={!!editClass} onOpenChange={(o) => !o && setEditClass(null)}>
-        <DialogContent>
+        <DialogContent className="max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>تعديل الحلقة</DialogTitle>
           </DialogHeader>

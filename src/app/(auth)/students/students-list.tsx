@@ -7,7 +7,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Plus, Search } from "lucide-react"
+import { Plus, Search, GraduationCap } from "lucide-react"
 
 type Student = {
   id:                        string
@@ -67,9 +67,15 @@ export function StudentsList({
 
       <div className="divide-y rounded-lg border bg-card">
         {filtered.length === 0 && (
-          <p className="text-center text-muted-foreground py-10">
-            {search ? "لا توجد نتائج مطابقة" : "لا يوجد طلاب بعد"}
-          </p>
+          <div className="py-12 text-center text-muted-foreground space-y-2">
+            <GraduationCap className="h-10 w-10 mx-auto opacity-30" />
+            <p className="text-sm font-medium">
+              {search ? "لا توجد نتائج مطابقة للبحث" : "لا يوجد طلاب بعد"}
+            </p>
+            {!search && isPrincipal && (
+              <p className="text-xs">اضغط «طالب جديد» لإضافة أول طالب</p>
+            )}
+          </div>
         )}
         {filtered.map((student) => {
           const statusInfo = STATUS_MAP[student.status] ?? { label: student.status, className: "" }

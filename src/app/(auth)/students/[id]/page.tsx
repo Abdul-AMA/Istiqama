@@ -239,7 +239,7 @@ export default async function StudentDetailPage({ params }: Props) {
                       <Badge className={`text-xs ${RATING_COLORS[r.rating] ?? ""}`}>
                         {RATING_LABELS[r.rating] ?? r.rating}
                       </Badge>
-                      <span className="text-muted-foreground mr-auto">{formatDate(r.date)}</span>
+                      <span className="text-muted-foreground ms-auto">{formatDate(r.date)}</span>
                     </div>
                   ))}
                 </div>
