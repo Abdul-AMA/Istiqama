@@ -21,7 +21,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { Plus, Pencil, KeyRound, ToggleLeft, ToggleRight } from "lucide-react"
+import Link from "next/link"
+import { Plus, Pencil, KeyRound, ToggleLeft, ToggleRight, Eye } from "lucide-react"
 import {
   createTeacher,
   updateTeacher,
@@ -105,6 +106,11 @@ export function TeacherTable({ teachers }: { teachers: Teacher[] }) {
                 </TableCell>
                 <TableCell>
                   <div className="flex items-center gap-1 justify-end">
+                    <Link href={`/teachers/${t.id}`}>
+                      <Button variant="ghost" size="icon" title="عرض الملف">
+                        <Eye className="h-4 w-4" />
+                      </Button>
+                    </Link>
                     <Button variant="ghost" size="icon" onClick={() => setEditTeacher(t)} title="تعديل">
                       <Pencil className="h-4 w-4" />
                     </Button>
