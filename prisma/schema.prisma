@@ -297,8 +297,8 @@ model MessageLog {
   student    Student? @relation(fields: [studentId], references: [id])
   classId    String?
   class      Class?   @relation(fields: [classId], references: [id])
-  categoryId String
-  category   MessageCategory @relation(fields: [categoryId], references: [id])
+  categoryId String?
+  category   MessageCategory? @relation(fields: [categoryId], references: [id])
 
   createdByUserId String
   createdBy       User   @relation("MessageCreatedByUser", fields: [createdByUserId], references: [id])
