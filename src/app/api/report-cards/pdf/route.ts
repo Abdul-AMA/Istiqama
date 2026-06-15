@@ -23,12 +23,12 @@ export async function POST(req: NextRequest) {
       fullName: true,
       photoUrl: true,
       currentTotalPagesMemorized: true,
+      previousHifzPages: true,
       class: { select: { name: true, teacher: { select: { fullName: true, id: true } } } },
     },
   })
   if (!student) return NextResponse.json({ error: "الطالب غير موجود" }, { status: 404 })
 
-  // RBAC: teacher can only generate for own class students
   if (role === "TEACHER" && student.class?.teacher.id !== userId) {
     return NextResponse.json({ error: "غير مصرح" }, { status: 403 })
   }
@@ -36,7 +36,7 @@ export async function POST(req: NextRequest) {
   const fromDate = new Date(from)
   const toDate = new Date(to)
 
-  const [attendanceRecords, hifzSessions, sardRecords] = await Promise.all([
+  const [attendanceRecords, hifzSessions, sardRecords, allNewEntries] = await Promise.all([
     prisma.attendanceRecord.findMany({
       where: { studentId, date: { gte: fromDate, lte: toDate } },
       select: { status: true, date: true },
@@ -54,6 +54,21 @@ export async function POST(req: NextRequest) {
       take: 2,
       select: { type: true, date: true, fromJuz: true, toJuz: true, rating: true },
     }),
+    // All NEW entries ever — to get overall surah range
+    prisma.recitationEntry.findMany({
+      where: {
+        type: "NEW",
+        hifzSession: { studentId },
+      },
+      select: {
+        fromPage: true,
+        toPage: true,
+        fromSurah: true,
+        fromAyah: true,
+        toSurah: true,
+        toAyah: true,
+      },
+    }),
   ])
 
   // Attendance summary
@@ -65,7 +80,7 @@ export async function POST(req: NextRequest) {
   const presentCount = attCounts.PRESENT + attCounts.LATE
   const attPct = totalSessions > 0 ? Math.round((presentCount / totalSessions) * 100) : 0
 
-  // Pages in range
+  // Pages added in range + average rating
   let newPagesInRange = 0
   const allRatings: number[] = []
   for (const sess of hifzSessions) {
@@ -76,9 +91,37 @@ export async function POST(req: NextRequest) {
       allRatings.push(e.rating)
     }
   }
-  const avgRating = allRatings.length > 0
-    ? allRatings.reduce((a, b) => a + b, 0) / allRatings.length
-    : 0
+  const avgRating =
+    allRatings.length > 0 ? allRatings.reduce((a, b) => a + b, 0) / allRatings.length : 0
+
+  // Overall surah range from all NEW entries
+  let minFromPage = Infinity
+  let maxToPage = -Infinity
+  let fromSurah: number | null = null
+  let fromAyah: number | null = null
+  let toSurah: number | null = null
+  let toAyah: number | null = null
+
+  for (const e of allNewEntries) {
+    if (e.fromPage < minFromPage) {
+      minFromPage = e.fromPage
+      fromSurah = e.fromSurah
+      fromAyah = e.fromAyah
+    }
+    if (e.toPage > maxToPage) {
+      maxToPage = e.toPage
+      toSurah = e.toSurah
+      toAyah = e.toAyah
+    }
+  }
+
+  // Fetch surah names
+  const surahNums = [fromSurah, toSurah].filter((n): n is number => n !== null)
+  const surahRecords =
+    surahNums.length > 0
+      ? await prisma.surah.findMany({ where: { number: { in: surahNums } } })
+      : []
+  const surahNameMap = new Map(surahRecords.map((s) => [s.number, s.nameAr]))
 
   const lastSard = sardRecords.find((s) => s.type === "INDIVIDUAL")
   const lastGroupSard = sardRecords.find((s) => s.type === "GROUP")
@@ -93,6 +136,10 @@ export async function POST(req: NextRequest) {
     from,
     to,
     totalPagesMemorized: student.currentTotalPagesMemorized,
+    fromSurahName: fromSurah ? (surahNameMap.get(fromSurah) ?? null) : null,
+    fromAyah,
+    toSurahName: toSurah ? (surahNameMap.get(toSurah) ?? null) : null,
+    toAyah,
     newPagesInRange,
     presentCount: attCounts.PRESENT,
     absentCount: attCounts.ABSENT,
@@ -100,37 +147,44 @@ export async function POST(req: NextRequest) {
     excusedCount: attCounts.EXCUSED,
     totalSessions,
     attendancePct: attPct,
-    avgRatingLabel: avgRating > 0 ? RATING_AR[Math.round(avgRating)] ?? "" : "—",
+    attendanceDays: presentCount,
+    avgRatingLabel: avgRating > 0 ? (RATING_AR[Math.round(avgRating)] ?? "") : "—",
     sessionsCount: hifzSessions.length,
     lastSardFardi: lastSard
       ? {
           date: lastSard.date.toISOString().slice(0, 10),
-          juz: lastSard.fromJuz === lastSard.toJuz
-            ? `جزء ${lastSard.fromJuz}`
-            : `جزء ${lastSard.fromJuz}–${lastSard.toJuz}`,
+          juz:
+            lastSard.fromJuz === lastSard.toJuz
+              ? `جزء ${lastSard.fromJuz}`
+              : `جزء ${lastSard.fromJuz}–${lastSard.toJuz}`,
           rating: RATING_AR[lastSard.rating] ?? "",
         }
       : null,
     lastSardJamai: lastGroupSard
       ? {
           date: lastGroupSard.date.toISOString().slice(0, 10),
-          juz: lastGroupSard.fromJuz === lastGroupSard.toJuz
-            ? `جزء ${lastGroupSard.fromJuz}`
-            : `جزء ${lastGroupSard.fromJuz}–${lastGroupSard.toJuz}`,
+          juz:
+            lastGroupSard.fromJuz === lastGroupSard.toJuz
+              ? `جزء ${lastGroupSard.fromJuz}`
+              : `جزء ${lastGroupSard.fromJuz}–${lastGroupSard.toJuz}`,
           rating: RATING_AR[lastGroupSard.rating] ?? "",
         }
       : null,
     teacherNotes: teacherNotes ?? "",
   }
 
-  // renderToBuffer accepts a React element whose root must be a <Document>
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const buffer = await renderToBuffer(createElement(ReportCardDocument, { data }) as any)
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const buffer = await renderToBuffer(createElement(ReportCardDocument, { data }) as any)
 
-  return new NextResponse(new Uint8Array(buffer), {
-    headers: {
-      "Content-Type": "application/pdf",
-      "Content-Disposition": `attachment; filename="report-${student.fullName}.pdf"`,
-    },
-  })
+    return new NextResponse(new Uint8Array(buffer), {
+      headers: {
+        "Content-Type": "application/pdf",
+        "Content-Disposition": `attachment; filename="report-${encodeURIComponent(student.fullName)}.pdf"`,
+      },
+    })
+  } catch (err) {
+    console.error("PDF render error:", err)
+    return NextResponse.json({ error: "فشل إنشاء PDF" }, { status: 500 })
+  }
 }

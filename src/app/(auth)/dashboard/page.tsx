@@ -172,14 +172,14 @@ async function TeacherDashboard({ userId, userName }: { userId: string; userName
       {/* Class cards */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
         {classStats.map((cls) => (
-          <Link key={cls.id} href={`/classes/${cls.id}`}>
-            <Card className="hover:shadow-md transition-shadow cursor-pointer">
-              <CardContent className="pt-5 pb-4 space-y-3">
+          <Card key={cls.id} className="hover:shadow-md transition-shadow">
+            <CardContent className="pt-5 pb-4 space-y-3">
+              <Link href={`/classes/${cls.id}`} className="block">
                 <div className="flex items-center justify-between">
                   <p className="font-semibold">{cls.name}</p>
                   <BookOpen className="h-4 w-4 text-green-600" />
                 </div>
-                <div className="grid grid-cols-3 gap-2 text-center">
+                <div className="grid grid-cols-3 gap-2 text-center mt-3">
                   <div>
                     <p className="text-xl font-bold">{cls.students.length}</p>
                     <p className="text-xs text-muted-foreground">طالب</p>
@@ -195,18 +195,17 @@ async function TeacherDashboard({ userId, userName }: { userId: string; userName
                     <p className="text-xs text-muted-foreground">تقييم الأسبوع</p>
                   </div>
                 </div>
-                <div className="flex gap-2">
-                  <Link
-                    href={`/classes/${cls.id}/report`}
-                    className="text-xs text-green-700 hover:underline"
-                    onClick={(e) => e.stopPropagation()}
-                  >
-                    تقرير الحلقة
-                  </Link>
-                </div>
-              </CardContent>
-            </Card>
-          </Link>
+              </Link>
+              <div className="flex gap-2">
+                <Link
+                  href={`/report?classId=${cls.id}`}
+                  className="text-xs text-green-700 hover:underline"
+                >
+                  تقرير الحلقة
+                </Link>
+              </div>
+            </CardContent>
+          </Card>
         ))}
         {classStats.length === 0 && (
           <Card className="col-span-full">
@@ -575,7 +574,7 @@ async function PrincipalDashboard({ userName }: { userName: string }) {
                   <div key={cls.id} className="px-4 py-3 space-y-2">
                     <div className="flex items-center justify-between">
                       <Link href={`/classes/${cls.id}`} className="font-medium hover:underline">{cls.name}</Link>
-                      <Link href={`/classes/${cls.id}/report`} className="text-xs text-green-700 hover:underline">تقرير</Link>
+                      <Link href={`/report?classId=${cls.id}`} className="text-xs text-green-700 hover:underline">تقرير</Link>
                     </div>
                     <p className="text-xs text-muted-foreground">{cls.teacherName}</p>
                     <div className="flex gap-4 text-xs">
@@ -633,7 +632,7 @@ async function PrincipalDashboard({ userName }: { userName: string }) {
                           )}
                         </td>
                         <td className="px-3 py-3 text-center">
-                          <Link href={`/classes/${cls.id}/report`} className="text-xs text-green-700 hover:underline">عرض</Link>
+                          <Link href={`/report?classId=${cls.id}`} className="text-xs text-green-700 hover:underline">عرض</Link>
                         </td>
                       </tr>
                     ))}

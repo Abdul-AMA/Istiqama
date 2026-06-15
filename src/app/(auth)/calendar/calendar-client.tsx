@@ -60,17 +60,13 @@ function getCellStyle(day: DayInfo) {
 
   switch (day.status) {
     case "NO_CLASS":
-      bg = "bg-transparent"
+      bg = "bg-transparent hover:bg-muted/30"
       text = "text-muted-foreground/40"
+      cursor = "cursor-pointer"
       break
     case "COMPLETE":
       bg = "bg-green-100 hover:bg-green-200"
       text = "text-green-800"
-      cursor = "cursor-pointer"
-      break
-    case "PARTIAL":
-      bg = "bg-amber-100 hover:bg-amber-200"
-      text = "text-amber-800"
       cursor = "cursor-pointer"
       break
     case "MISSED":
@@ -97,11 +93,9 @@ function StatusDot({ status }: { status: DayInfo["status"] }) {
   const color =
     status === "COMPLETE"
       ? "bg-green-500"
-      : status === "PARTIAL"
-      ? "bg-amber-500"
       : status === "MISSED"
       ? "bg-red-500"
-      : "bg-blue-400" // EMPTY = today, no records
+      : "bg-blue-400" // EMPTY = today, no records yet
   return <span className={cn("block w-1.5 h-1.5 rounded-full mt-0.5", color)} />
 }
 
@@ -119,8 +113,7 @@ function CalendarGrid({
   month: number
 }) {
   const col1 = firstDayColumn(year, month)
-  const isTappable = (d: DayInfo) =>
-    d.isClassDay && !d.isFuture && d.status !== "UPCOMING"
+  const isTappable = (d: DayInfo) => !d.isFuture && d.status !== "UPCOMING"
 
   return (
     <div className="space-y-2">
@@ -169,7 +162,6 @@ function CalendarGrid({
 function Legend() {
   const items = [
     { color: "bg-green-500", label: "مكتمل" },
-    { color: "bg-amber-500", label: "جزئي" },
     { color: "bg-red-500", label: "فاته التسجيل" },
     { color: "bg-blue-400", label: "اليوم" },
     { color: "bg-muted-foreground/20", label: "لا يوجد حصة" },
@@ -260,7 +252,11 @@ export function CalendarClient({
       {role === "PRINCIPAL" && teachers.length > 0 && (
         <div className="space-y-1.5">
           <Label className="text-sm">المعلم</Label>
-          <Select value={teacherId} onValueChange={(v) => handleTeacherChange(v ?? "")}>
+          <Select
+            value={teacherId}
+            onValueChange={(v) => handleTeacherChange(v ?? "")}
+            items={[{ value: "", label: "كل المعلمين" }, ...teachers.map((t) => ({ value: t.id, label: t.fullName }))]}
+          >
             <SelectTrigger className="h-11">
               <SelectValue placeholder="كل المعلمين" />
             </SelectTrigger>
@@ -284,7 +280,11 @@ export function CalendarClient({
             <Loader2 className="h-4 w-4 animate-spin me-2" /> جارٍ التحميل…
           </div>
         ) : (
-          <Select value={classId} onValueChange={(v) => setClassId(v ?? "")}>
+          <Select
+            value={classId}
+            onValueChange={(v) => setClassId(v ?? "")}
+            items={classes.map((c) => ({ value: c.id, label: c.teacher ? `${c.name} — ${c.teacher.fullName}` : c.name }))}
+          >
             <SelectTrigger className="h-11">
               <SelectValue placeholder="اختر حلقة" />
             </SelectTrigger>

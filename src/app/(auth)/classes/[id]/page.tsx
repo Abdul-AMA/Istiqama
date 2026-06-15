@@ -60,9 +60,6 @@ export default async function ClassDetailPage({ params }: Props) {
             <Users className="h-3.5 w-3.5" />
             {cls.students.length}
           </Badge>
-          <Link href={`/classes/${cls.id}/report`}>
-            <Button variant="outline" size="sm">تقرير</Button>
-          </Link>
           {role === "PRINCIPAL" && (
             <Link href={`/students/new?classId=${cls.id}`}>
               <Button size="sm" className="gap-2">
@@ -74,7 +71,6 @@ export default async function ClassDetailPage({ params }: Props) {
         </div>
       </div>
 
-      {/* Student roster — client component handles offline guest optimistic updates */}
       <ClassRoster classId={cls.id} initialStudents={cls.students} />
     </div>
   )

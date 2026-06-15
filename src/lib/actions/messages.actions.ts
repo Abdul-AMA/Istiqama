@@ -25,6 +25,20 @@ export async function saveMessageLog(input: z.infer<typeof logSchema>) {
   })
 }
 
+export async function getAttendanceDays(studentId: string, from: string, to: string): Promise<number> {
+  const session = await auth()
+  if (!session?.user) return 0
+
+  const count = await prisma.attendanceRecord.count({
+    where: {
+      studentId,
+      date: { gte: new Date(from), lte: new Date(to) },
+      status: { in: ["PRESENT", "LATE"] },
+    },
+  })
+  return count
+}
+
 export async function getGroupReportData(classId: string, date: string) {
   const session = await auth()
   if (!session?.user) throw new Error("غير مصرح")
@@ -40,27 +54,43 @@ export async function getGroupReportData(classId: string, date: string) {
 
   const dateObj = new Date(date)
 
-  const students = await prisma.student.findMany({
-    where: { classId, status: { in: ["ACTIVE", "GUEST"] } },
-    select: {
-      id: true,
-      fullName: true,
-      currentTotalPagesMemorized: true,
-      attendanceRecords: {
-        where: { date: dateObj },
-        select: { status: true },
-      },
-      hifzSessions: {
-        where: { date: dateObj },
-        select: {
-          entries: {
-            select: { type: true, fromPage: true, toPage: true, rating: true, mistakeCount: true },
+  const [students, allSurahs] = await Promise.all([
+    prisma.student.findMany({
+      where: { classId, status: { in: ["ACTIVE", "GUEST"] } },
+      select: {
+        id: true,
+        fullName: true,
+        currentTotalPagesMemorized: true,
+        attendanceRecords: {
+          where: { date: dateObj },
+          select: { status: true },
+        },
+        hifzSessions: {
+          where: { date: dateObj },
+          select: {
+            generalNotes: true,
+            entries: {
+              select: {
+                type: true,
+                fromSurah: true,
+                fromAyah: true,
+                toAyah: true,
+                surahCompleted: true,
+                pagesCount: true,
+                rating: true,
+                mistakeCount: true,
+                notes: true,
+              },
+            },
           },
         },
       },
-    },
-    orderBy: { fullName: "asc" },
-  })
+      orderBy: { fullName: "asc" },
+    }),
+    prisma.surah.findMany({ select: { number: true, nameAr: true } }),
+  ])
+
+  const surahMap = new Map(allSurahs.map((s) => [s.number, s.nameAr]))
 
   const RATING_AR = ["", "يحتاج إعادة", "جيد", "جيد جداً", "ممتاز"]
   const ATT_AR: Record<string, string> = {
@@ -68,6 +98,15 @@ export async function getGroupReportData(classId: string, date: string) {
     ABSENT: "غائب",
     LATE: "متأخر",
     EXCUSED: "معذور",
+  }
+
+  function fmtEntry(e: { fromSurah: number | null; fromAyah: number | null; toAyah: number | null; surahCompleted: boolean; pagesCount: number | null; rating: number; mistakeCount: number }) {
+    const name = e.fromSurah ? (surahMap.get(e.fromSurah) ?? `سورة ${e.fromSurah}`) : "؟"
+    const ayahs = e.surahCompleted ? "(كاملة)" : `${e.fromAyah}–${e.toAyah}`
+    const pages = e.pagesCount ? ` ${e.pagesCount}ص` : ""
+    const rating = RATING_AR[e.rating] ?? ""
+    const mistakes = e.mistakeCount > 0 ? ` أخطاء:${e.mistakeCount}` : ""
+    return `${name} ${ayahs}${pages} ⭐${rating}${mistakes}`
   }
 
   const lines: string[] = [
@@ -82,7 +121,6 @@ export async function getGroupReportData(classId: string, date: string) {
   for (const s of students) {
     const att = s.attendanceRecords[0]?.status ?? "PRESENT"
     const session = s.hifzSessions[0]
-    const newEntry = session?.entries.find((e) => e.type === "NEW")
 
     if (att === "ABSENT" || att === "EXCUSED") {
       absentStudents.push(`${s.fullName} (${ATT_AR[att]})`)
@@ -90,12 +128,28 @@ export async function getGroupReportData(classId: string, date: string) {
     }
 
     const attLabel = ATT_AR[att] ?? "حاضر"
-    const sabaq = newEntry
-      ? `ص${newEntry.fromPage}–${newEntry.toPage} | ${RATING_AR[newEntry.rating] ?? ""}`
-      : "لا حفظ جديد"
+    const newEntries = session?.entries.filter((e) => e.type === "NEW") ?? []
+    const revEntries = session?.entries.filter((e) => e.type === "RECENT_REVISION") ?? []
 
-    lines.push(`👤 ${s.fullName}`)
-    lines.push(`   الحضور: ${attLabel} | الحفظ: ${sabaq}`)
+    lines.push(`👤 ${s.fullName} — ${attLabel}`)
+
+    if (newEntries.length > 0) {
+      lines.push(`   📖 حفظ: ${newEntries.map(fmtEntry).join(" | ")}`)
+    } else {
+      lines.push(`   📖 لا حفظ جديد`)
+    }
+
+    if (revEntries.length > 0) {
+      lines.push(`   🔄 مراجعة: ${revEntries.map((e) => {
+        const name = e.fromSurah ? (surahMap.get(e.fromSurah) ?? `سورة ${e.fromSurah}`) : "؟"
+        const ayahs = e.surahCompleted ? "(كاملة)" : `${e.fromAyah}–${e.toAyah}`
+        return `${name} ${ayahs}`
+      }).join(" | ")}`)
+    }
+
+    if (session?.generalNotes) {
+      lines.push(`   💬 ${session.generalNotes}`)
+    }
   }
 
   if (absentStudents.length > 0) {

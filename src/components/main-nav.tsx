@@ -19,6 +19,7 @@ import {
   FileText,
   Tags,
   DatabaseBackup,
+  BarChart3,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Sheet, SheetContent } from "@/components/ui/sheet"
@@ -39,6 +40,7 @@ const principalNav: NavItem[] = [
   { label: "الطلاب",         href: "/students",   icon: <GraduationCap className="h-5 w-5" /> },
   { label: "الجدول",         href: "/timetable",  icon: <CalendarDays className="h-5 w-5" /> },
   { label: "الرسائل",         href: "/messages",    icon: <MessageSquare className="h-5 w-5" /> },
+  { label: "التقارير",        href: "/report",      icon: <BarChart3 className="h-5 w-5" /> },
   { label: "كشف الدرجات",    href: "/report-cards", icon: <FileText className="h-5 w-5" /> },
   { label: "المعلمون",       href: "/admin/users", icon: <UserCog className="h-5 w-5" /> },
   { label: "الضيوف",         href: "/admin/guests", icon: <UserCheck className="h-5 w-5" /> },
@@ -54,6 +56,7 @@ const teacherNav: NavItem[] = [
   { label: "الطلاب",         href: "/students",   icon: <GraduationCap className="h-5 w-5" /> },
   { label: "الجدول",         href: "/timetable",  icon: <CalendarDays className="h-5 w-5" /> },
   { label: "الرسائل",        href: "/messages",   icon: <MessageSquare className="h-5 w-5" /> },
+  { label: "التقارير",       href: "/report",     icon: <BarChart3 className="h-5 w-5" /> },
   { label: "كشف الدرجات",   href: "/report-cards", icon: <FileText className="h-5 w-5" /> },
 ]
 

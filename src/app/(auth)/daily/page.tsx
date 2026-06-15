@@ -1,4 +1,4 @@
-import { getMyClasses } from "@/lib/actions/daily-session.actions"
+import { getMyClasses, getAllSurahs } from "@/lib/actions/daily-session.actions"
 import { DailySessionClient } from "./daily-session-client"
 
 export default async function DailyPage({
@@ -7,7 +7,7 @@ export default async function DailyPage({
   searchParams: Promise<{ classId?: string; date?: string }>
 }) {
   const { classId, date } = await searchParams
-  const classes = await getMyClasses()
+  const [classes, surahs] = await Promise.all([getMyClasses(), getAllSurahs()])
 
   const today = new Date().toISOString().slice(0, 10)
 
@@ -21,6 +21,7 @@ export default async function DailyPage({
         classes={classes}
         initialClassId={classId ?? ""}
         initialDate={date ?? today}
+        surahs={surahs}
       />
     </div>
   )

@@ -35,9 +35,6 @@ const STATUS_LABELS: Record<string, string> = {
   GUEST: "ضيف",
 }
 
-const RATING_LABELS: Record<number, string> = {
-  4: "ممتاز", 3: "جيد جداً", 2: "جيد", 1: "يحتاج إعادة",
-}
 
 export function ReportClient({
   classId,
@@ -45,12 +42,14 @@ export function ReportClient({
   coverage,
   from,
   to,
+  filterPath,
 }: {
   classId: string
   students: StudentRow[]
   coverage: Coverage
   from: string
   to: string
+  filterPath?: string
 }) {
   const router = useRouter()
   const [fromDate, setFromDate] = useState(from)
@@ -60,7 +59,9 @@ export function ReportClient({
     const params = new URLSearchParams()
     if (fromDate) params.set("from", fromDate)
     if (toDate) params.set("to", toDate)
-    router.push(`/classes/${classId}/report?${params.toString()}`)
+    const base = filterPath ?? `/classes/${classId}/report`
+    const sep = base.includes("?") ? "&" : "?"
+    router.push(`${base}${sep}${params.toString()}`)
   }
 
   function downloadCSV() {
@@ -100,12 +101,31 @@ export function ReportClient({
     URL.revokeObjectURL(url)
   }
 
+  const ratedStudents = students.filter((s) => s.avgRating != null)
   const avgRatingAll =
-    students.length > 0
-      ? students
-          .filter((s) => s.avgRating != null)
-          .reduce((sum, s, _, arr) => sum + (s.avgRating ?? 0) / arr.length, 0)
+    ratedStudents.length > 0
+      ? ratedStudents.reduce((sum, s) => sum + (s.avgRating ?? 0), 0) / ratedStudents.length
       : null
+
+  const attendedStudents = students.filter((s) => s.attendanceRate != null)
+  const avgAttendance =
+    attendedStudents.length > 0
+      ? Math.round(
+          attendedStudents.reduce((sum, s) => sum + (s.attendanceRate ?? 0), 0) /
+            attendedStudents.length,
+        )
+      : null
+
+  const totalPagesAll = students.reduce((sum, s) => sum + s.totalPages, 0)
+
+  const avgVelocity =
+    students.length > 0
+      ? students.reduce((sum, s) => sum + s.velocity, 0) / students.length
+      : 0
+
+  const RATING_LABELS_AR: Record<number, string> = {
+    4: "ممتاز", 3: "جيد جداً", 2: "جيد", 1: "يحتاج إعادة",
+  }
 
   return (
     <div className="space-y-6">
@@ -138,21 +158,43 @@ export function ReportClient({
         </Button>
       </div>
 
-      {/* Coverage summary */}
+      {/* Class aggregate stats */}
       <div className="grid grid-cols-3 gap-3">
         <div className="rounded-lg border bg-green-50 p-4 text-center">
-          <p className="text-2xl font-bold text-green-700">{coverage.complete}</p>
-          <p className="text-sm text-muted-foreground mt-0.5">مكتملة</p>
+          <p className="text-2xl font-bold text-green-700">{totalPagesAll}</p>
+          <p className="text-xs text-muted-foreground mt-1">إجمالي الصفحات</p>
+          <p className="text-xs text-muted-foreground">لجميع الطلاب</p>
         </div>
-        <div className="rounded-lg border bg-yellow-50 p-4 text-center">
-          <p className="text-2xl font-bold text-yellow-700">{coverage.partial}</p>
-          <p className="text-sm text-muted-foreground mt-0.5">جزئية</p>
+        <div className="rounded-lg border bg-blue-50 p-4 text-center">
+          <p className="text-2xl font-bold text-blue-700">
+            {avgAttendance != null ? `${avgAttendance}%` : "—"}
+          </p>
+          <p className="text-xs text-muted-foreground mt-1">متوسط الحضور</p>
+          <p className="text-xs text-muted-foreground">في الفترة المحددة</p>
         </div>
-        <div className="rounded-lg border bg-red-50 p-4 text-center">
-          <p className="text-2xl font-bold text-red-700">{coverage.missed}</p>
-          <p className="text-sm text-muted-foreground mt-0.5">مهملة</p>
+        <div className="rounded-lg border bg-purple-50 p-4 text-center">
+          <p className="text-2xl font-bold text-purple-700">
+            {avgRatingAll != null
+              ? (RATING_LABELS_AR[Math.round(avgRatingAll)] ?? avgRatingAll.toFixed(1))
+              : "—"}
+          </p>
+          <p className="text-xs text-muted-foreground mt-1">متوسط التقييم</p>
+          <p className="text-xs text-muted-foreground">
+            {avgVelocity > 0 ? `${avgVelocity.toFixed(1)} ص/أ سرعة الحفظ` : "في الفترة المحددة"}
+          </p>
         </div>
       </div>
+
+      {/* Session coverage — secondary */}
+      {coverage.total > 0 && (
+        <div className="flex gap-3 text-sm text-muted-foreground rounded-lg border bg-muted/20 px-4 py-3 items-center flex-wrap">
+          <span className="font-medium text-foreground">تغطية الجلسات:</span>
+          <span className="text-green-700 font-medium">{coverage.complete} مكتملة</span>
+          <span className="text-yellow-700 font-medium">{coverage.partial} جزئية</span>
+          <span className="text-red-600 font-medium">{coverage.missed} مهملة</span>
+          <span className="text-muted-foreground">من أصل {coverage.total}</span>
+        </div>
+      )}
 
       {/* Roster table */}
       <Card>
@@ -161,8 +203,6 @@ export function ReportClient({
             <CardTitle className="text-base">قائمة الطلاب</CardTitle>
             <span className="text-sm text-muted-foreground">
               {students.length} طالب
-              {avgRatingAll != null &&
-                ` · متوسط التقييم: ${avgRatingAll.toFixed(1)}`}
             </span>
           </div>
         </CardHeader>

@@ -14,7 +14,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "بيانات ناقصة" }, { status: 400 })
   }
 
-  const [student, category] = await Promise.all([
+  const [student, category, allSurahs] = await Promise.all([
     prisma.student.findUnique({
       where: { id: studentId },
       select: {
@@ -27,7 +27,20 @@ export async function POST(req: NextRequest) {
           take: 1,
           select: {
             date: true,
-            entries: { select: { type: true, fromPage: true, toPage: true, rating: true, mistakeCount: true } },
+            generalNotes: true,
+            entries: {
+              select: {
+                type: true,
+                fromSurah: true,
+                fromAyah: true,
+                toAyah: true,
+                surahCompleted: true,
+                pagesCount: true,
+                rating: true,
+                mistakeCount: true,
+                notes: true,
+              },
+            },
           },
         },
         attendanceRecords: {
@@ -41,28 +54,39 @@ export async function POST(req: NextRequest) {
       where: { id: categoryId },
       select: { name: true, tone: true, template: true },
     }),
+    prisma.surah.findMany({ select: { number: true, nameAr: true } }),
   ])
 
   if (!student || !category) {
     return NextResponse.json({ error: "بيانات غير موجودة" }, { status: 404 })
   }
 
+  const surahMap = new Map(allSurahs.map((s) => [s.number, s.nameAr]))
+  const RATING_AR = ["", "يحتاج إعادة", "جيد", "جيد جداً", "ممتاز"]
+
   const lastSession = student.hifzSessions[0]
-  const newEntry = lastSession?.entries.find((e) => e.type === "NEW")
-  const revEntry = lastSession?.entries.find((e) => e.type === "RECENT_REVISION")
+  const newEntries = lastSession?.entries.filter((e) => e.type === "NEW") ?? []
+  const revEntries = lastSession?.entries.filter((e) => e.type === "RECENT_REVISION") ?? []
+
+  function fmtEntry(e: typeof newEntries[number], withRating = false) {
+    const name = e.fromSurah ? (surahMap.get(e.fromSurah) ?? `سورة ${e.fromSurah}`) : "؟"
+    const ayahs = e.surahCompleted ? "(كاملة)" : `الآيات ${e.fromAyah}–${e.toAyah}`
+    const pages = e.pagesCount ? ` | ${e.pagesCount} صفحة` : ""
+    const rating = withRating ? ` | التقييم: ${RATING_AR[e.rating] ?? ""}` : ""
+    const mistakes = withRating && e.mistakeCount > 0 ? ` | الأخطاء: ${e.mistakeCount}` : ""
+    const note = e.notes ? ` | ملاحظة: ${e.notes}` : ""
+    return `• ${name} ${ayahs}${pages}${rating}${mistakes}${note}`
+  }
 
   const toneAr = category.tone === "POSITIVE" ? "تشجيعية" : category.tone === "WARNING" ? "تحذيرية" : "محايدة"
-  const sabaq = newEntry ? `من صفحة ${newEntry.fromPage} إلى ${newEntry.toPage}` : "لا يوجد حفظ جديد"
-  const revision = revEntry ? `من صفحة ${revEntry.fromPage} إلى ${revEntry.toPage}` : "لا يوجد مراجعة"
-  const rating = newEntry
-    ? ["", "يحتاج إعادة", "جيد", "جيد جداً", "ممتاز"][newEntry.rating] ?? ""
-    : ""
-  const attendanceAr = student.attendanceRecords[0]?.status === "PRESENT"
-    ? "حاضر"
-    : student.attendanceRecords[0]?.status === "ABSENT"
-    ? "غائب"
-    : student.attendanceRecords[0]?.status === "LATE"
-    ? "متأخر"
+  const sabaqLines = newEntries.length ? newEntries.map((e) => fmtEntry(e, true)).join("\n") : "• لا يوجد حفظ جديد"
+  const revLines = revEntries.length ? revEntries.map((e) => fmtEntry(e, false)).join("\n") : "• لا يوجد مراجعة"
+  const totalMistakes = newEntries.reduce((sum, e) => sum + e.mistakeCount, 0)
+
+  const attendanceAr =
+    student.attendanceRecords[0]?.status === "PRESENT" ? "حاضر"
+    : student.attendanceRecords[0]?.status === "ABSENT" ? "غائب"
+    : student.attendanceRecords[0]?.status === "LATE" ? "متأخر"
     : "معذور"
 
   const prompt = `أنت مساعد لمركز تحفيظ قرآن كريم. اكتب رسالة واتساب قصيرة باللغة العربية لولي أمر الطالب.
@@ -75,12 +99,17 @@ export async function POST(req: NextRequest) {
 - اسم ولي الأمر: ${student.guardianName ?? "ولي الأمر"}
 - الحلقة: ${student.class?.name ?? ""}
 - المعلم: ${student.class?.teacher?.fullName ?? ""}
-- المجموع المحفوظ: ${student.currentTotalPagesMemorized} صفحة
-- الحفظ الجديد (آخر جلسة): ${sabaq}
-- المراجعة: ${revision}
-- التقييم: ${rating}
+- إجمالي المحفوظ: ${student.currentTotalPagesMemorized} صفحة
 - الحضور: ${attendanceAr}
-- الأخطاء: ${newEntry?.mistakeCount ?? 0}
+
+الحفظ الجديد (آخر جلسة):
+${sabaqLines}
+
+المراجعة:
+${revLines}
+
+إجمالي الأخطاء في الحفظ الجديد: ${totalMistakes}
+${lastSession?.generalNotes ? `ملاحظات عامة: ${lastSession.generalNotes}` : ""}
 
 اكتب رسالة طبيعية وودية تناسب النبرة ${toneAr}. لا تتجاوز 150 كلمة. ابدأ بالسلام وانتهِ بالدعاء.`
 

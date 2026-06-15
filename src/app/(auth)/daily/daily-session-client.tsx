@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useTransition, useEffect, useRef } from "react"
 import { toast } from "sonner"
-import { ChevronDown, ChevronUp, Save, Loader2, BookOpen, GraduationCap, BookMarked, WifiOff } from "lucide-react"
+import { Save, Loader2, BookMarked, GraduationCap, ChevronDown, ChevronUp, Plus, Trash2, WifiOff } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -20,7 +20,6 @@ import { cn } from "@/lib/utils"
 import {
   loadDailySession,
   saveDailySession,
-  getSurahsForRange,
   type SaveSessionInput,
 } from "@/lib/actions/daily-session.actions"
 import { db } from "@/lib/db"
@@ -28,6 +27,8 @@ import { db } from "@/lib/db"
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 type MyClass = { id: string; name: string; teacher: { fullName: string } }
+
+type SurahInfo = { number: number; nameAr: string; ayahCount: number; startPage: number }
 
 type StudentData = {
   id: string
@@ -47,8 +48,12 @@ type StudentRow = {
     entries: {
       id: string
       type: string
-      fromPage: number
-      toPage: number
+      fromSurah: number | null
+      fromAyah: number | null
+      toSurah: number | null
+      toAyah: number | null
+      surahCompleted: boolean
+      pagesCount: number | null
       rating: number
       mistakeCount: number
       notes: string | null
@@ -56,212 +61,370 @@ type StudentRow = {
   } | null
 }
 
-type RecEntry = {
-  type: "NEW" | "RECENT_REVISION" | "OLD_REVISION"
-  fromPage: string
-  toPage: string
+type SurahEntry = {
+  surahNumber: string   // "" = not selected
+  fromAyah: string
+  toAyah: string
+  completed: boolean
+  pagesCount: string    // teacher-entered, 0.5 increments
   rating: string
   mistakeCount: string
   notes: string
-  surahs: string
 }
 
 type StudentState = {
-  attendance: "PRESENT" | "ABSENT" | "LATE" | "EXCUSED"
+  attendance: "PRESENT" | "ABSENT" | "LATE" | "EXCUSED" | ""   // "" = not yet set
   attendanceNotes: string
   generalNotes: string
-  recitations: RecEntry[]
+  didNotRecite: boolean   // present but no recitation today
+  hifz: SurahEntry[]
+  muraja: SurahEntry[]
 }
 
 const ATTENDANCE_OPTIONS = [
-  { value: "PRESENT", label: "حاضر", className: "bg-green-100 text-green-800 border-green-200" },
-  { value: "LATE", label: "متأخر", className: "bg-yellow-100 text-yellow-800 border-yellow-200" },
-  { value: "ABSENT", label: "غائب", className: "bg-red-100 text-red-800 border-red-200" },
-  { value: "EXCUSED", label: "معذور", className: "bg-gray-100 text-gray-700 border-gray-200" },
-]
-
-const REC_TYPES: { type: "NEW" | "RECENT_REVISION" | "OLD_REVISION"; label: string; color: string }[] = [
-  { type: "NEW", label: "سبق (حفظ جديد)", color: "text-green-700 bg-green-50 border-green-200" },
-  { type: "RECENT_REVISION", label: "سبقي (مراجعة قريبة)", color: "text-blue-700 bg-blue-50 border-blue-200" },
-  { type: "OLD_REVISION", label: "منزل (مراجعة قديمة)", color: "text-purple-700 bg-purple-50 border-purple-200" },
+  { value: "PRESENT",  label: "حاضر",  className: "bg-green-100 text-green-800 border-green-200" },
+  { value: "LATE",     label: "متأخر", className: "bg-yellow-100 text-yellow-800 border-yellow-200" },
+  { value: "ABSENT",   label: "غائب",  className: "bg-red-100 text-red-800 border-red-200" },
+  { value: "EXCUSED",  label: "معذور", className: "bg-gray-100 text-gray-700 border-gray-200" },
 ]
 
 const RATING_LABELS: Record<number, string> = { 4: "ممتاز", 3: "جيد جداً", 2: "جيد", 1: "يحتاج إعادة" }
 
-function emptyRec(type: "NEW" | "RECENT_REVISION" | "OLD_REVISION"): RecEntry {
-  return { type, fromPage: "", toPage: "", rating: "", mistakeCount: "0", notes: "", surahs: "" }
+function emptySurahEntry(): SurahEntry {
+  return { surahNumber: "", fromAyah: "1", toAyah: "", completed: false, pagesCount: "", rating: "", mistakeCount: "0", notes: "" }
 }
 
 function initStudentState(row: StudentRow): StudentState {
-  const attendance = (row.attendance?.status as StudentState["attendance"]) ?? "PRESENT"
-  const recitations: RecEntry[] = []
+  const hifz: SurahEntry[] = []
+  const muraja: SurahEntry[] = []
 
   if (row.hifzSession) {
     for (const e of row.hifzSession.entries) {
-      recitations.push({
-        type: e.type as "NEW" | "RECENT_REVISION" | "OLD_REVISION",
-        fromPage: String(e.fromPage),
-        toPage: String(e.toPage),
+      const entry: SurahEntry = {
+        surahNumber: String(e.fromSurah ?? ""),
+        fromAyah: String(e.fromAyah ?? "1"),
+        toAyah: String(e.toAyah ?? ""),
+        completed: e.surahCompleted,
+        pagesCount: e.pagesCount !== null ? String(e.pagesCount) : "",
         rating: String(e.rating),
         mistakeCount: String(e.mistakeCount),
         notes: e.notes ?? "",
-        surahs: "",
-      })
+      }
+      if (e.type === "NEW") hifz.push(entry)
+      else muraja.push(entry)
     }
   }
+
+  const savedAtt = row.attendance?.status as "PRESENT" | "ABSENT" | "LATE" | "EXCUSED" | undefined
+  const isPresent = savedAtt === "PRESENT" || savedAtt === "LATE"
+  const didNotRecite = !!savedAtt && isPresent && !row.hifzSession
 
   return {
-    attendance,
+    attendance: savedAtt ?? "",
     attendanceNotes: row.attendance?.notes ?? "",
     generalNotes: row.hifzSession?.generalNotes ?? "",
-    recitations,
+    didNotRecite,
+    hifz,
+    muraja,
   }
 }
 
-// ─── Surah label hook ────────────────────────────────────────────────────────
+// ─── Surah Combobox ───────────────────────────────────────────────────────────
 
-function useSurahLabel(fromPage: string, toPage: string) {
-  const [label, setLabel] = useState("")
-  const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
+function SurahCombobox({
+  value,
+  surahs,
+  onChange,
+}: {
+  value: string
+  surahs: SurahInfo[]
+  onChange: (num: string) => void
+}) {
+  const [open, setOpen] = useState(false)
+  const [query, setQuery] = useState("")
+  const containerRef = useRef<HTMLDivElement>(null)
+
+  const selected = surahs.find((s) => String(s.number) === value)
+
+  const filtered = query === ""
+    ? surahs
+    : surahs.filter(
+        (s) => s.nameAr.includes(query) || String(s.number).startsWith(query)
+      )
 
   useEffect(() => {
-    const from = parseInt(fromPage)
-    const to = parseInt(toPage)
-    if (!from || !to || from > to || from < 1 || to > 604) {
-      setLabel("")
-      return
-    }
-    if (timer.current) clearTimeout(timer.current)
-    timer.current = setTimeout(async () => {
-      try {
-        const surahs = await getSurahsForRange(from, to)
-        setLabel(surahs.length > 0 ? surahs.map((s) => s.nameAr).join(" ، ") : "")
-      } catch {
-        setLabel("")
+    if (!open) return
+    const handler = (e: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setOpen(false)
+        setQuery("")
       }
-    }, 400)
-    return () => { if (timer.current) clearTimeout(timer.current) }
-  }, [fromPage, toPage])
+    }
+    document.addEventListener("mousedown", handler)
+    return () => document.removeEventListener("mousedown", handler)
+  }, [open])
 
-  return label
-}
-
-// ─── Recitation entry block ───────────────────────────────────────────────────
-
-function RecitationBlock({
-  rec,
-  onChange,
-  onRemove,
-}: {
-  rec: RecEntry
-  onChange: (updated: RecEntry) => void
-  onRemove: () => void
-}) {
-  const surahLabel = useSurahLabel(rec.fromPage, rec.toPage)
-  const meta = REC_TYPES.find((t) => t.type === rec.type)!
-
-  const set = (field: keyof RecEntry, val: string) => onChange({ ...rec, [field]: val })
+  const handleSelect = (num: string) => {
+    onChange(num)
+    setOpen(false)
+    setQuery("")
+  }
 
   return (
-    <div className={cn("rounded-lg border p-3 space-y-3", meta.color)}>
-      <div className="flex items-center justify-between">
-        <span className="text-sm font-semibold">{meta.label}</span>
-        <button
-          type="button"
-          onClick={onRemove}
-          className="text-xs text-muted-foreground hover:text-destructive"
-        >
-          حذف
-        </button>
-      </div>
-
-      <div className="grid grid-cols-2 gap-2">
-        <div className="space-y-1">
-          <Label className="text-xs">من صفحة</Label>
-          <Input
-            type="number"
-            min={1}
-            max={604}
-            value={rec.fromPage}
-            onChange={(e) => set("fromPage", e.target.value)}
-            className="h-10 text-center text-base"
-            placeholder="1"
-          />
-        </div>
-        <div className="space-y-1">
-          <Label className="text-xs">إلى صفحة</Label>
-          <Input
-            type="number"
-            min={1}
-            max={604}
-            value={rec.toPage}
-            onChange={(e) => set("toPage", e.target.value)}
-            className="h-10 text-center text-base"
-            placeholder="604"
-          />
-        </div>
-      </div>
-
-      {surahLabel && (
-        <p className="text-xs text-muted-foreground flex items-center gap-1">
-          <BookOpen className="h-3 w-3 shrink-0" />
-          {surahLabel}
-        </p>
-      )}
-
-      <div className="space-y-1">
-        <Label className="text-xs">التقييم</Label>
-        <div className="grid grid-cols-4 gap-1">
-          {[4, 3, 2, 1].map((r) => (
-            <button
-              key={r}
-              type="button"
-              onClick={() => set("rating", String(r))}
+    <div ref={containerRef} className="relative flex-1">
+      <input
+        type="text"
+        value={open ? query : (selected ? `${selected.number}. ${selected.nameAr}` : "")}
+        onChange={(e) => { setQuery(e.target.value); setOpen(true) }}
+        onFocus={() => { setOpen(true); setQuery("") }}
+        placeholder="ابحث عن سورة باسمها أو رقمها..."
+        className="w-full h-10 rounded-md border border-input bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+        autoComplete="off"
+      />
+      {open && filtered.length > 0 && (
+        <div className="absolute z-50 mt-1 w-full max-h-52 overflow-y-auto rounded-md border bg-popover shadow-md">
+          {filtered.map((s) => (
+            <div
+              key={s.number}
               className={cn(
-                "rounded-md border py-2 text-xs font-medium transition-colors",
-                rec.rating === String(r)
-                  ? r === 4
-                    ? "bg-green-600 text-white border-green-600"
-                    : r === 3
-                    ? "bg-blue-600 text-white border-blue-600"
-                    : r === 2
-                    ? "bg-yellow-500 text-white border-yellow-500"
-                    : "bg-red-500 text-white border-red-500"
-                  : "bg-background hover:bg-muted",
+                "px-3 py-2 text-sm cursor-pointer hover:bg-muted",
+                String(s.number) === value && "bg-muted font-semibold"
               )}
+              onMouseDown={(e) => { e.preventDefault(); handleSelect(String(s.number)) }}
             >
-              {RATING_LABELS[r]}
-            </button>
+              {s.number}. {s.nameAr}
+              <span className="text-muted-foreground text-xs me-1"> ({s.ayahCount} آية)</span>
+            </div>
           ))}
         </div>
-      </div>
-
-      <div className="flex items-center gap-3">
-        <Label className="text-xs shrink-0">عدد الأخطاء</Label>
-        <Input
-          type="number"
-          min={0}
-          value={rec.mistakeCount}
-          onChange={(e) => set("mistakeCount", e.target.value)}
-          className="h-9 w-20 text-center text-base"
-        />
-      </div>
-
-      <div className="space-y-1">
-        <Label className="text-xs">ملاحظات</Label>
-        <Textarea
-          value={rec.notes}
-          onChange={(e) => set("notes", e.target.value)}
-          rows={2}
-          className="text-sm resize-none"
-          placeholder="اختياري"
-        />
-      </div>
+      )}
+      {open && filtered.length === 0 && (
+        <div className="absolute z-50 mt-1 w-full rounded-md border bg-popover px-3 py-2 text-sm text-muted-foreground shadow-md">
+          لا توجد نتائج
+        </div>
+      )}
     </div>
   )
 }
 
-// ─── Student card ─────────────────────────────────────────────────────────────
+// ─── Surah Entry Block ────────────────────────────────────────────────────────
+
+function SurahEntryBlock({
+  entry,
+  surahs,
+  onChange,
+  onRemove,
+}: {
+  entry: SurahEntry
+  surahs: SurahInfo[]
+  onChange: (e: SurahEntry) => void
+  onRemove: () => void
+}) {
+  const surah = surahs.find((s) => String(s.number) === entry.surahNumber)
+
+  const set = <K extends keyof SurahEntry>(field: K, val: SurahEntry[K]) =>
+    onChange({ ...entry, [field]: val })
+
+  const handleSurahChange = (num: string) => {
+    const s = surahs.find((x) => String(x.number) === num)
+    onChange({
+      ...entry,
+      surahNumber: num,
+      fromAyah: "1",
+      toAyah: s ? String(s.ayahCount) : "",
+      completed: false,
+    })
+  }
+
+  const handleCompleted = (checked: boolean) => {
+    if (checked && surah) {
+      onChange({ ...entry, completed: true, fromAyah: "1", toAyah: String(surah.ayahCount) })
+    } else {
+      onChange({ ...entry, completed: false })
+    }
+  }
+
+  return (
+    <div className="rounded-lg border bg-background p-3 space-y-3">
+      {/* Surah combobox + remove */}
+      <div className="flex items-center gap-2">
+        <SurahCombobox value={entry.surahNumber} surahs={surahs} onChange={handleSurahChange} />
+        <button
+          type="button"
+          onClick={onRemove}
+          className="shrink-0 text-muted-foreground hover:text-destructive transition-colors"
+          aria-label="حذف"
+        >
+          <Trash2 className="h-4 w-4" />
+        </button>
+      </div>
+
+      {surah && (
+        <>
+          {/* Completed checkbox */}
+          <label className="flex items-center gap-2 cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={entry.completed}
+              onChange={(e) => handleCompleted(e.target.checked)}
+              className="h-4 w-4 rounded accent-green-600"
+            />
+            <span className="text-sm font-medium">تم الحفظ كاملاً</span>
+            <span className="text-xs text-muted-foreground">(الآية 1 – {surah.ayahCount})</span>
+          </label>
+
+          {/* Ayah range */}
+          <div className="grid grid-cols-2 gap-2">
+            <div className="space-y-1">
+              <Label className="text-xs">من آية</Label>
+              <Input
+                type="number"
+                min={1}
+                max={surah.ayahCount}
+                value={entry.fromAyah}
+                onChange={(e) => set("fromAyah", e.target.value)}
+                readOnly={entry.completed}
+                className={cn("h-10 text-center text-base", entry.completed && "bg-muted cursor-not-allowed")}
+                placeholder="1"
+              />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">إلى آية</Label>
+              <Input
+                type="number"
+                min={1}
+                max={surah.ayahCount}
+                value={entry.toAyah}
+                onChange={(e) => set("toAyah", e.target.value)}
+                readOnly={entry.completed}
+                className={cn("h-10 text-center text-base", entry.completed && "bg-muted cursor-not-allowed")}
+                placeholder={String(surah.ayahCount)}
+              />
+            </div>
+          </div>
+
+          {/* Pages count */}
+          <div className="flex items-center gap-3">
+            <Label className="text-xs shrink-0">عدد الصفحات</Label>
+            <Input
+              type="number"
+              min={0.5}
+              step={0.5}
+              value={entry.pagesCount}
+              onChange={(e) => set("pagesCount", e.target.value)}
+              className="h-9 w-24 text-center text-base"
+              placeholder="0.5"
+            />
+          </div>
+
+          {/* Rating */}
+          <div className="space-y-1">
+            <Label className="text-xs">التقييم</Label>
+            <div className="grid grid-cols-4 gap-1">
+              {([4, 3, 2, 1] as const).map((r) => (
+                <button
+                  key={r}
+                  type="button"
+                  onClick={() => set("rating", String(r))}
+                  className={cn(
+                    "rounded-md border py-2 text-xs font-medium transition-colors",
+                    entry.rating === String(r)
+                      ? r === 4 ? "bg-green-600 text-white border-green-600"
+                        : r === 3 ? "bg-blue-600 text-white border-blue-600"
+                        : r === 2 ? "bg-yellow-500 text-white border-yellow-500"
+                        : "bg-red-500 text-white border-red-500"
+                      : "bg-background hover:bg-muted",
+                  )}
+                >
+                  {RATING_LABELS[r]}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Mistake count */}
+          <div className="flex items-center gap-3">
+            <Label className="text-xs shrink-0">عدد الأخطاء</Label>
+            <Input
+              type="number"
+              min={0}
+              value={entry.mistakeCount}
+              onChange={(e) => set("mistakeCount", e.target.value)}
+              className="h-9 w-20 text-center text-base"
+            />
+          </div>
+
+          {/* Notes */}
+          <div className="space-y-1">
+            <Label className="text-xs">ملاحظات</Label>
+            <Textarea
+              value={entry.notes}
+              onChange={(e) => set("notes", e.target.value)}
+              rows={2}
+              className="text-sm resize-none"
+              placeholder="اختياري"
+            />
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
+
+// ─── Section Block (حفظ or مراجعة) ──────────────────────────────────────────
+
+function SectionBlock({
+  title,
+  colorClass,
+  entries,
+  surahs,
+  onChange,
+}: {
+  title: string
+  colorClass: string
+  entries: SurahEntry[]
+  surahs: SurahInfo[]
+  onChange: (entries: SurahEntry[]) => void
+}) {
+  const add = () => onChange([...entries, emptySurahEntry()])
+  const update = (idx: number, e: SurahEntry) => {
+    const next = [...entries]
+    next[idx] = e
+    onChange(next)
+  }
+  const remove = (idx: number) => onChange(entries.filter((_, i) => i !== idx))
+
+  return (
+    <div className={cn("rounded-xl border-2 p-3 space-y-3", colorClass)}>
+      <p className="text-sm font-bold">{title}</p>
+
+      {entries.length === 0 && (
+        <p className="text-xs text-muted-foreground text-center py-2">لا يوجد — اضغط + لإضافة سورة</p>
+      )}
+
+      {entries.map((entry, idx) => (
+        <SurahEntryBlock
+          key={idx}
+          entry={entry}
+          surahs={surahs}
+          onChange={(e) => update(idx, e)}
+          onRemove={() => remove(idx)}
+        />
+      ))}
+
+      <button
+        type="button"
+        onClick={add}
+        className="flex items-center justify-center gap-1.5 w-full rounded-lg border border-dashed py-2.5 text-xs font-medium hover:bg-muted/50 transition-colors"
+      >
+        <Plus className="h-3.5 w-3.5" />
+        إضافة سورة
+      </button>
+    </div>
+  )
+}
+
+// ─── Student Card ─────────────────────────────────────────────────────────────
 
 function StudentCard({
   row,
@@ -269,33 +432,24 @@ function StudentCard({
   isExpanded,
   onToggle,
   onChange,
+  surahs,
+  highlightUnfilled,
 }: {
   row: StudentRow
   state: StudentState
   isExpanded: boolean
   onToggle: () => void
   onChange: (s: StudentState) => void
+  surahs: SurahInfo[]
+  highlightUnfilled: boolean
 }) {
   const s = row.student
   const isPresent = state.attendance === "PRESENT" || state.attendance === "LATE"
-  const attMeta = ATTENDANCE_OPTIONS.find((o) => o.value === state.attendance)!
-
-  const usedTypes = new Set(state.recitations.map((r) => r.type))
-  const availableTypes = REC_TYPES.filter((t) => !usedTypes.has(t.type))
-
-  const addRecitation = (type: "NEW" | "RECENT_REVISION" | "OLD_REVISION") => {
-    onChange({ ...state, recitations: [...state.recitations, emptyRec(type)] })
-  }
-
-  const updateRec = (idx: number, updated: RecEntry) => {
-    const next = [...state.recitations]
-    next[idx] = updated
-    onChange({ ...state, recitations: next })
-  }
-
-  const removeRec = (idx: number) => {
-    onChange({ ...state, recitations: state.recitations.filter((_, i) => i !== idx) })
-  }
+  const attMeta = state.attendance
+    ? ATTENDANCE_OPTIONS.find((o) => o.value === state.attendance) ?? null
+    : null
+  const isBlank = !state.attendance
+  const needsAttention = highlightUnfilled && isBlank
 
   const setAttendance = (val: string) => {
     const newAtt = val as StudentState["attendance"]
@@ -303,12 +457,18 @@ function StudentCard({
     onChange({
       ...state,
       attendance: newAtt,
-      recitations: newPresent ? state.recitations : [],
+      didNotRecite: false,
+      hifz: newPresent ? state.hifz : [],
+      muraja: newPresent ? state.muraja : [],
     })
   }
 
   return (
-    <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
+    <div className={cn(
+      "rounded-xl border bg-card shadow-sm overflow-hidden",
+      needsAttention && "border-red-400 ring-1 ring-red-300",
+    )}>
+      {/* Header */}
       <button
         type="button"
         className="w-full flex items-center gap-3 p-4 text-right"
@@ -328,22 +488,33 @@ function StudentCard({
               <Badge className="bg-orange-100 text-orange-800 border-orange-200 text-xs shrink-0">ضيف</Badge>
             )}
           </div>
-          <p className="text-xs text-muted-foreground mt-0.5">
-            {s.currentTotalPagesMemorized} ص محفوظة
-            {s.lastSabaqReference && ` · آخر سبق: ${s.lastSabaqReference}`}
-          </p>
         </div>
 
         <div className="flex items-center gap-2 shrink-0">
-          <span className={cn("text-xs font-medium px-2 py-1 rounded-full border", attMeta.className)}>
-            {attMeta.label}
-          </span>
-          {isExpanded ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
+          {attMeta ? (
+            <span className={cn("text-xs font-medium px-2 py-1 rounded-full border", attMeta.className)}>
+              {state.didNotRecite && isPresent ? "لم يسمع" : attMeta.label}
+            </span>
+          ) : (
+            <span className={cn(
+              "text-xs font-medium px-2 py-1 rounded-full border border-dashed",
+              needsAttention
+                ? "border-red-400 text-red-500"
+                : "border-muted-foreground/30 text-muted-foreground/50",
+            )}>
+              لم يُحدَّد
+            </span>
+          )}
+          {isExpanded
+            ? <ChevronUp className="h-4 w-4 text-muted-foreground" />
+            : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
         </div>
       </button>
 
+      {/* Expanded body */}
       {isExpanded && (
         <div className="border-t px-4 pb-4 pt-3 space-y-4">
+          {/* Attendance */}
           <div className="space-y-2">
             <Label className="text-sm font-medium">الحضور</Label>
             <div className="grid grid-cols-4 gap-2">
@@ -354,9 +525,7 @@ function StudentCard({
                   onClick={() => setAttendance(opt.value)}
                   className={cn(
                     "rounded-lg border py-2.5 text-sm font-medium transition-colors",
-                    state.attendance === opt.value
-                      ? opt.className
-                      : "bg-background hover:bg-muted text-muted-foreground",
+                    state.attendance === opt.value ? opt.className : "bg-background hover:bg-muted text-muted-foreground",
                   )}
                 >
                   {opt.label}
@@ -367,49 +536,59 @@ function StudentCard({
 
           {isPresent && (
             <div className="space-y-3">
-              <Label className="text-sm font-medium">الحفظ والمراجعة</Label>
+              {/* لم يسمع toggle */}
+              <button
+                type="button"
+                onClick={() => onChange({
+                  ...state,
+                  didNotRecite: !state.didNotRecite,
+                  hifz: state.didNotRecite ? state.hifz : [],
+                  muraja: state.didNotRecite ? state.muraja : [],
+                })}
+                className={cn(
+                  "w-full rounded-lg border py-2.5 text-sm font-medium transition-colors",
+                  state.didNotRecite
+                    ? "bg-orange-100 text-orange-800 border-orange-300"
+                    : "bg-background hover:bg-muted text-muted-foreground border-dashed",
+                )}
+              >
+                {state.didNotRecite ? "✓ لم يسمع اليوم" : "لم يسمع اليوم"}
+              </button>
 
-              {state.recitations.map((rec, idx) => (
-                <RecitationBlock
-                  key={rec.type}
-                  rec={rec}
-                  onChange={(updated) => updateRec(idx, updated)}
-                  onRemove={() => removeRec(idx)}
-                />
-              ))}
+              {!state.didNotRecite && (
+                <>
+                  <SectionBlock
+                    title="حفظ جديد"
+                    colorClass="border-green-300 bg-green-50/50"
+                    entries={state.hifz}
+                    surahs={surahs}
+                    onChange={(entries) => onChange({ ...state, hifz: entries })}
+                  />
 
-              {availableTypes.length > 0 && (
-                <div className="flex flex-wrap gap-2">
-                  {availableTypes.map((t) => (
-                    <button
-                      key={t.type}
-                      type="button"
-                      onClick={() => addRecitation(t.type)}
-                      className={cn(
-                        "text-xs rounded-lg border px-3 py-2 font-medium transition-colors hover:opacity-80",
-                        t.color,
-                      )}
-                    >
-                      + {t.label}
-                    </button>
-                  ))}
-                </div>
+                  <SectionBlock
+                    title="مراجعة"
+                    colorClass="border-blue-300 bg-blue-50/50"
+                    entries={state.muraja}
+                    surahs={surahs}
+                    onChange={(entries) => onChange({ ...state, muraja: entries })}
+                  />
+
+                  <div className="space-y-1">
+                    <Label className="text-xs text-muted-foreground">ملاحظات عامة</Label>
+                    <Textarea
+                      value={state.generalNotes}
+                      onChange={(e) => onChange({ ...state, generalNotes: e.target.value })}
+                      rows={2}
+                      className="text-sm resize-none"
+                      placeholder="اختياري"
+                    />
+                  </div>
+                </>
               )}
-
-              <div className="space-y-1">
-                <Label className="text-xs text-muted-foreground">ملاحظات عامة للجلسة</Label>
-                <Textarea
-                  value={state.generalNotes}
-                  onChange={(e) => onChange({ ...state, generalNotes: e.target.value })}
-                  rows={2}
-                  className="text-sm resize-none"
-                  placeholder="اختياري"
-                />
-              </div>
             </div>
           )}
 
-          {!isPresent && (
+          {state.attendance && !isPresent && (
             <div className="space-y-1">
               <Label className="text-xs text-muted-foreground">سبب الغياب (اختياري)</Label>
               <Textarea
@@ -427,16 +606,18 @@ function StudentCard({
   )
 }
 
-// ─── Main client component ────────────────────────────────────────────────────
+// ─── Main Client Component ────────────────────────────────────────────────────
 
 export function DailySessionClient({
   classes,
   initialClassId,
   initialDate,
+  surahs,
 }: {
   classes: MyClass[]
   initialClassId: string
   initialDate: string
+  surahs: SurahInfo[]
 }) {
   const [classId, setClassId] = useState(initialClassId || classes[0]?.id || "")
   const [date, setDate] = useState(initialDate)
@@ -447,6 +628,7 @@ export function DailySessionClient({
   const [saving, startSaving] = useTransition()
   const [isOffline, setIsOffline] = useState(false)
   const [fromCache, setFromCache] = useState(false)
+  const [highlightUnfilled, setHighlightUnfilled] = useState(false)
 
   useEffect(() => {
     if (typeof navigator !== "undefined") setIsOffline(!navigator.onLine)
@@ -466,7 +648,6 @@ export function DailySessionClient({
     setFromCache(false)
     try {
       if (!navigator.onLine) {
-        // Load from IndexedDB cache
         const cached = await db.cachedData.get(`roster:${cid}`)
         if (cached && Array.isArray(cached.value)) {
           const students = cached.value as StudentData[]
@@ -477,9 +658,7 @@ export function DailySessionClient({
           }))
           setRows(rosterRows)
           const initStates: Record<string, StudentState> = {}
-          for (const row of rosterRows) {
-            initStates[row.student.id] = initStudentState(row)
-          }
+          for (const row of rosterRows) initStates[row.student.id] = initStudentState(row)
           setStates(initStates)
           setExpandedId(rosterRows[0]?.student.id ?? null)
           setFromCache(true)
@@ -493,17 +672,13 @@ export function DailySessionClient({
       const data = await loadDailySession(cid, d)
       setRows(data)
       const initStates: Record<string, StudentState> = {}
-      for (const row of data) {
-        initStates[row.student.id] = initStudentState(row)
-      }
+      for (const row of data) initStates[row.student.id] = initStudentState(row)
       setStates(initStates)
       setExpandedId(data[0]?.student.id ?? null)
 
-      // Cache the roster (student data only) for offline use
-      const studentData = data.map((r) => r.student)
       await db.cachedData.put({
         key: `roster:${cid}`,
-        value: studentData,
+        value: data.map((r) => r.student),
         updatedAt: Date.now(),
       })
     } catch (e) {
@@ -513,33 +688,65 @@ export function DailySessionClient({
     }
   }, [])
 
-  useEffect(() => {
-    load(classId, date)
-  }, [classId, date, load])
+  useEffect(() => { load(classId, date) }, [classId, date, load])
 
   const updateState = (studentId: string, s: StudentState) =>
     setStates((prev) => ({ ...prev, [studentId]: s }))
 
   const handleSave = () => {
     startSaving(async () => {
+      // Validate: all students must have attendance set
+      const blankRows = rows.filter((row) => !states[row.student.id]?.attendance)
+      if (blankRows.length > 0) {
+        setHighlightUnfilled(true)
+        setExpandedId(blankRows[0].student.id)
+        toast.error(`${blankRows.length} ${blankRows.length === 1 ? "طالب" : "طلاب"} لم يُحدَّد حضورهم`)
+        return
+      }
+
+      // Validate: present students must have حفظ/مراجعة or "لم يسمع"
+      const presentNoData = rows.filter((row) => {
+        const st = states[row.student.id]
+        const isPresent = st.attendance === "PRESENT" || st.attendance === "LATE"
+        return isPresent && !st.didNotRecite && st.hifz.length === 0 && st.muraja.length === 0
+      })
+      if (presentNoData.length > 0) {
+        setExpandedId(presentNoData[0].student.id)
+        toast.error(`${presentNoData.length} ${presentNoData.length === 1 ? "طالب حضر" : "طلاب حضروا"} بدون تسجيل — أضف حفظاً أو اضغط "لم يسمع اليوم"`)
+        return
+      }
+
+      setHighlightUnfilled(false)
+
       const entries: SaveSessionInput["entries"] = rows.map((row) => {
         const st = states[row.student.id]
-        const recitations = st.recitations
-          .filter((r) => r.fromPage && r.toPage && r.rating)
-          .map((r) => ({
-            type: r.type,
-            fromPage: parseInt(r.fromPage),
-            toPage: parseInt(r.toPage),
-            rating: parseInt(r.rating),
-            mistakeCount: parseInt(r.mistakeCount || "0"),
-            notes: r.notes || undefined,
-          }))
+
+        const toRec = (type: "NEW" | "RECENT_REVISION", list: SurahEntry[]) =>
+          list
+            .filter((e) => e.surahNumber && e.toAyah && e.rating)
+            .map((e) => ({
+              type,
+              surahNumber: parseInt(e.surahNumber),
+              fromAyah: parseInt(e.fromAyah || "1"),
+              toAyah: parseInt(e.toAyah),
+              surahCompleted: e.completed,
+              pagesCount: e.pagesCount ? parseFloat(e.pagesCount) : undefined,
+              rating: parseInt(e.rating),
+              mistakeCount: parseInt(e.mistakeCount || "0"),
+              notes: e.notes || undefined,
+            }))
+
+        const notesOverride = st.didNotRecite ? "لم يسمع اليوم" : (st.attendanceNotes || undefined)
+
         return {
           studentId: row.student.id,
-          attendance: st.attendance,
-          attendanceNotes: st.attendanceNotes || undefined,
+          attendance: st.attendance as "PRESENT" | "ABSENT" | "LATE" | "EXCUSED",
+          attendanceNotes: notesOverride,
           generalNotes: st.generalNotes || undefined,
-          recitations,
+          recitations: st.didNotRecite ? [] : [
+            ...toRec("NEW", st.hifz),
+            ...toRec("RECENT_REVISION", st.muraja),
+          ],
         }
       })
 
@@ -560,11 +767,9 @@ export function DailySessionClient({
         toast.error(result.error)
       } else {
         toast.success("تم الحفظ بنجاح")
-        // Refresh the cache with the latest roster data
-        const studentData = rows.map((r) => r.student)
         await db.cachedData.put({
           key: `roster:${classId}`,
-          value: studentData,
+          value: rows.map((r) => r.student),
           updatedAt: Date.now(),
         })
       }
@@ -588,19 +793,21 @@ export function DailySessionClient({
         </div>
       )}
 
-      {/* Class + date selectors */}
+      {/* Class + date */}
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <div className="space-y-1.5">
           <Label>الحلقة</Label>
-          <Select value={classId} onValueChange={(v) => setClassId(v ?? "")}>
+          <Select
+            value={classId}
+            onValueChange={(v) => setClassId(v ?? "")}
+            items={classes.map((c) => ({ value: c.id, label: c.name }))}
+          >
             <SelectTrigger className="h-11">
               <SelectValue placeholder="اختر حلقة" />
             </SelectTrigger>
             <SelectContent>
               {classes.map((c) => (
-                <SelectItem key={c.id} value={c.id}>
-                  {c.name}
-                </SelectItem>
+                <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
               ))}
             </SelectContent>
           </Select>
@@ -670,6 +877,8 @@ export function DailySessionClient({
                   setExpandedId((prev) => (prev === row.student.id ? null : row.student.id))
                 }
                 onChange={(s) => updateState(row.student.id, s)}
+                surahs={surahs}
+                highlightUnfilled={highlightUnfilled}
               />
             ))}
           </div>

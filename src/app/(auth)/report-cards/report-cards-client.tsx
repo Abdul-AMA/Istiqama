@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useTransition } from "react"
+import { useState, useTransition, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
@@ -11,35 +11,73 @@ import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
 import { Download, Send, Loader2 } from "lucide-react"
 import { toast } from "sonner"
-import { saveMessageLog } from "@/lib/actions/messages.actions"
+import { saveMessageLog, getAttendanceDays } from "@/lib/actions/messages.actions"
 
 type Student = {
   id: string
   fullName: string
   guardianPhone: string | null
   guardianName: string | null
+  classId: string | null
   className: string | null
   teacherName: string | null
   totalPages: number
+  pageFrom: number | null
+  pageTo: number | null
+  fromSurahName: string | null
+  fromAyah: number | null
+  toSurahName: string | null
+  toAyah: number | null
+}
+
+type ClassOption = {
+  id: string
+  name: string
+  teacher: { fullName: string }
 }
 
 type Props = {
   students: Student[]
+  classes: ClassOption[]
 }
 
 const now = new Date()
 const DEFAULT_FROM = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-01`
 const DEFAULT_TO = now.toISOString().slice(0, 10)
 
-export function ReportCardsClient({ students }: Props) {
+export function ReportCardsClient({ students, classes }: Props) {
+  const [classId, setClassId] = useState("")
   const [studentId, setStudentId] = useState("")
   const [from, setFrom] = useState(DEFAULT_FROM)
   const [to, setTo] = useState(DEFAULT_TO)
   const [teacherNotes, setTeacherNotes] = useState("")
+  const [attendanceDays, setAttendanceDays] = useState<number | null>(null)
   const [isPending, startTransition] = useTransition()
   const [isSending, startSend] = useTransition()
 
+  const filteredStudents = classId
+    ? students.filter((s) => s.classId === classId)
+    : students
+
   const student = students.find((s) => s.id === studentId)
+
+  // Fetch attendance days whenever student or date range changes
+  useEffect(() => {
+    if (!studentId || !from || !to) {
+      setAttendanceDays(null)
+      return
+    }
+    let cancelled = false
+    getAttendanceDays(studentId, from, to)
+      .then((days) => { if (!cancelled) setAttendanceDays(days) })
+      .catch(() => { if (!cancelled) setAttendanceDays(null) })
+    return () => { cancelled = true }
+  }, [studentId, from, to])
+
+  function handleClassChange(v: string | null) {
+    setClassId(v ?? "")
+    setStudentId("")
+  }
 
   function downloadPdf() {
     if (!studentId) return
@@ -60,7 +98,9 @@ export function ReportCardsClient({ students }: Props) {
         const a = document.createElement("a")
         a.href = url
         a.download = `تقرير-${student?.fullName ?? ""}.pdf`
+        document.body.appendChild(a)
         a.click()
+        document.body.removeChild(a)
         URL.revokeObjectURL(url)
         toast.success("تم تحميل PDF")
       } catch {
@@ -72,63 +112,105 @@ export function ReportCardsClient({ students }: Props) {
   function sendWhatsApp() {
     if (!student?.guardianPhone) return
     const body = buildTextSummary()
-    const phone = student.guardianPhone.replace("+", "")
+    const phone = student.guardianPhone.replace(/\D/g, "").replace(/^00/, "")
     const url = `https://wa.me/${phone}?text=${encodeURIComponent(body)}`
     window.open(url, "_blank")
 
     startSend(async () => {
       try {
-        await saveMessageLog({
-          studentId,
-          channel: "INDIVIDUAL",
-          mode: "TEMPLATE",
-          body,
-        })
+        await saveMessageLog({ studentId, channel: "INDIVIDUAL", mode: "TEMPLATE", body })
       } catch {
         // Non-blocking
       }
     })
   }
 
+  function buildSurahRangeText() {
+    if (!student) return ""
+    if (student.fromSurahName && student.fromAyah && student.toSurahName && student.toAyah) {
+      return `من سورة ${student.fromSurahName} آية ${student.fromAyah} إلى سورة ${student.toSurahName} آية ${student.toAyah}`
+    }
+    return ""
+  }
+
   function buildTextSummary() {
     if (!student) return ""
+    const surahRange = buildSurahRangeText()
     return [
       `📊 كشف متابعة الطالب: ${student.fullName}`,
       `📅 الفترة: ${from} — ${to}`,
-      `📚 إجمالي المحفوظ: ${student.totalPages} صفحة`,
+      `📚 المحفوظ الإجمالي: ${student.totalPages} صفحة`,
+      surahRange ? `📖 ${surahRange}` : "",
+      attendanceDays !== null ? `✅ أيام الحضور في الفترة: ${attendanceDays} يوم` : "",
       `🏫 الحلقة: ${student.className ?? ""}`,
       `👨‍🏫 المعلم: ${student.teacherName ?? ""}`,
       teacherNotes ? `📝 ملاحظات المعلم: ${teacherNotes}` : "",
-      `بارك الله فيكم 🤲`,
+      `بارك الله فيكم`,
     ]
       .filter(Boolean)
       .join("\n")
   }
+
+  const surahRangeText = buildSurahRangeText()
+  const pageRangeText = student?.pageFrom && student?.pageTo
+    ? `من صفحة ${student.pageFrom} إلى صفحة ${student.pageTo}`
+    : student?.totalPages
+      ? `${student.totalPages} صفحة`
+      : "—"
 
   return (
     <div className="space-y-6">
       {/* Filters */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">اختر الطالب والفترة</CardTitle>
+          <CardTitle className="text-base">اختر الحلقة والطالب والفترة</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
+          {/* Class filter */}
           <div className="space-y-1">
-            <Label>الطالب</Label>
-            <Select value={studentId} onValueChange={(v) => { if (v != null) setStudentId(v) }}>
-              <SelectTrigger>
-                <SelectValue placeholder="اختر الطالب" />
+            <Label>الحلقة</Label>
+            <Select
+              value={classId}
+              onValueChange={handleClassChange}
+              items={[{ value: "", label: "الكل — جميع الحلقات" }, ...classes.map((c) => ({ value: c.id, label: c.name }))]}
+            >
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="الكل — جميع الحلقات" />
               </SelectTrigger>
               <SelectContent>
-                {students.map((s) => (
-                  <SelectItem key={s.id} value={s.id}>
-                    {s.fullName}
-                    {s.className ? ` — ${s.className}` : ""}
+                <SelectItem value="">الكل — جميع الحلقات</SelectItem>
+                {classes.map((c) => (
+                  <SelectItem key={c.id} value={c.id}>
+                    {c.name}
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
           </div>
+
+          {/* Student filter */}
+          <div className="space-y-1">
+            <Label>الطالب</Label>
+            <Select
+              value={studentId}
+              onValueChange={(v) => setStudentId(v ?? "")}
+              items={filteredStudents.map((s) => ({ value: s.id, label: s.fullName + (!classId && s.className ? ` — ${s.className}` : "") }))}
+            >
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="اختر الطالب" />
+              </SelectTrigger>
+              <SelectContent>
+                {filteredStudents.map((s) => (
+                  <SelectItem key={s.id} value={s.id}>
+                    {s.fullName}
+                    {!classId && s.className ? ` — ${s.className}` : ""}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Date range */}
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1">
               <Label>من</Label>
@@ -172,9 +254,21 @@ export function ReportCardsClient({ students }: Props) {
                 <span className="text-muted-foreground">إجمالي المحفوظ</span>
                 <span className="font-medium text-green-700">{student.totalPages} صفحة</span>
               </div>
-              <div className="flex justify-between border-b pb-2 col-span-2">
+              {surahRangeText && (
+                <div className="flex justify-between border-b pb-2 col-span-2">
+                  <span className="text-muted-foreground">نطاق المحفوظ</span>
+                  <span className="font-medium text-green-700 text-left">{surahRangeText}</span>
+                </div>
+              )}
+              <div className="flex justify-between border-b pb-2">
                 <span className="text-muted-foreground">الفترة</span>
                 <span className="font-medium">{from} — {to}</span>
+              </div>
+              <div className="flex justify-between border-b pb-2">
+                <span className="text-muted-foreground">أيام الحضور</span>
+                <span className="font-medium text-blue-700">
+                  {attendanceDays !== null ? `${attendanceDays} يوم` : "…"}
+                </span>
               </div>
             </div>
 

@@ -20,6 +20,17 @@ type Category = {
   template: string
 }
 
+type SessionEntry = {
+  surahName: string | null
+  fromAyah: number | null
+  toAyah: number | null
+  surahCompleted: boolean
+  pagesCount: number | null
+  rating: number
+  mistakeCount: number
+  notes: string | null
+}
+
 type StudentOption = {
   id: string
   fullName: string
@@ -32,8 +43,8 @@ type StudentOption = {
   lastSession: {
     date: string
     attendanceStatus: string | null
-    newEntry: { fromPage: number; toPage: number; rating: number; mistakeCount: number } | null
-    revEntry: { fromPage: number; toPage: number } | null
+    newEntries: SessionEntry[]
+    revEntries: SessionEntry[]
   } | null
 }
 
@@ -57,16 +68,21 @@ const ATT_AR: Record<string, string> = {
   EXCUSED: "معذور",
 }
 
+function fmtEntry(e: SessionEntry): string {
+  const ayahs = e.surahCompleted ? "(كاملة)" : `${e.fromAyah}–${e.toAyah}`
+  const pages = e.pagesCount ? ` (${e.pagesCount}ص)` : ""
+  return `${e.surahName ?? "؟"}: ${ayahs}${pages}`
+}
+
 function fillTemplate(template: string, student: StudentOption, date: string, teacherName: string) {
   const last = student.lastSession
-  const sabaq = last?.newEntry
-    ? `من صفحة ${last.newEntry.fromPage} إلى ${last.newEntry.toPage}`
-    : "لا يوجد"
-  const rev = last?.revEntry
-    ? `من صفحة ${last.revEntry.fromPage} إلى ${last.revEntry.toPage}`
-    : "لا يوجد"
-  const rating = last?.newEntry ? (RATING_AR[last.newEntry.rating] ?? "") : ""
-  const mistakes = String(last?.newEntry?.mistakeCount ?? 0)
+  const newEntries = last?.newEntries ?? []
+  const revEntries = last?.revEntries ?? []
+
+  const sabaq = newEntries.length ? newEntries.map(fmtEntry).join(" | ") : "لا يوجد"
+  const rev = revEntries.length ? revEntries.map(fmtEntry).join(" | ") : "لا يوجد"
+  const rating = newEntries[0] ? (RATING_AR[newEntries[0].rating] ?? "") : ""
+  const mistakes = String(newEntries.reduce((sum, e) => sum + e.mistakeCount, 0))
   const att = ATT_AR[last?.attendanceStatus ?? "PRESENT"] ?? "حاضر"
 
   return template
@@ -113,7 +129,11 @@ function GroupReportTab({ classes }: { classes: ClassOption[] }) {
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div className="space-y-1">
           <Label>الحلقة</Label>
-          <Select value={classId} onValueChange={(v) => { if (v != null) setClassId(v) }}>
+          <Select
+            value={classId}
+            onValueChange={(v) => { if (v != null) setClassId(v) }}
+            items={classes.map((c) => ({ value: c.id, label: c.name }))}
+          >
             <SelectTrigger>
               <SelectValue placeholder="اختر الحلقة" />
             </SelectTrigger>
@@ -243,7 +263,11 @@ function IndividualMessageTab({
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div className="space-y-1">
           <Label>الفئة</Label>
-          <Select value={categoryId} onValueChange={(v) => { if (v != null) setCategoryId(v) }}>
+          <Select
+            value={categoryId}
+            onValueChange={(v) => { if (v != null) setCategoryId(v) }}
+            items={categories.map((c) => ({ value: c.id, label: c.name }))}
+          >
             <SelectTrigger>
               <SelectValue placeholder="اختر الفئة" />
             </SelectTrigger>
@@ -258,7 +282,11 @@ function IndividualMessageTab({
         </div>
         <div className="space-y-1">
           <Label>الطالب</Label>
-          <Select value={studentId} onValueChange={(v) => { if (v != null) setStudentId(v) }}>
+          <Select
+            value={studentId}
+            onValueChange={(v) => { if (v != null) setStudentId(v) }}
+            items={students.map((s) => ({ value: s.id, label: s.fullName + (s.className ? ` — ${s.className}` : "") }))}
+          >
             <SelectTrigger>
               <SelectValue placeholder="اختر الطالب" />
             </SelectTrigger>

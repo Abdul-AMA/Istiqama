@@ -28,7 +28,7 @@ export type DayInfo = {
   recordedCount: number
   rosterCount: number
   // status drives the cell colour
-  status: "NO_CLASS" | "COMPLETE" | "PARTIAL" | "MISSED" | "UPCOMING" | "EMPTY"
+  status: "NO_CLASS" | "COMPLETE" | "MISSED" | "UPCOMING" | "EMPTY"
 }
 
 export type CalendarClass = {
@@ -134,16 +134,17 @@ export async function getCalendarDayStates(
     const recordedCount = records?.size ?? 0
 
     let status: DayInfo["status"]
-    if (!isClassDay) {
-      status = "NO_CLASS"
-    } else if (isFuture) {
-      status = "UPCOMING"
-    } else if (recordedCount === 0) {
-      status = isToday ? "EMPTY" : "MISSED"
-    } else if (rosterCount > 0 && recordedCount >= rosterCount) {
+    if (isFuture) {
+      status = isClassDay ? "UPCOMING" : "NO_CLASS"
+    } else if (recordedCount > 0) {
+      // Any records saved → treat as complete (partial saves are blocked by validation)
       status = "COMPLETE"
+    } else if (!isClassDay) {
+      // No records, not a scheduled class day
+      status = "NO_CLASS"
     } else {
-      status = "PARTIAL"
+      // Scheduled class day, no records, not future
+      status = isToday ? "EMPTY" : "MISSED"
     }
 
     days.push({ day: d, date: dateStr, isToday, isClassDay, isFuture, recordedCount, rosterCount, status })

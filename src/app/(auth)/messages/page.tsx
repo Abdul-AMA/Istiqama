@@ -30,42 +30,65 @@ export default async function MessagesPage() {
   // Load students scoped to role
   const classIds = classes.map((c) => c.id)
 
-  const rawStudents = await prisma.student.findMany({
-    where: {
-      classId: { in: classIds },
-      status: { in: ["ACTIVE", "GUEST"] },
-    },
-    select: {
-      id: true,
-      fullName: true,
-      guardianPhone: true,
-      guardianName: true,
-      classId: true,
-      currentTotalPagesMemorized: true,
-      class: { select: { name: true, teacher: { select: { fullName: true } } } },
-      attendanceRecords: {
-        orderBy: { date: "desc" },
-        take: 1,
-        select: { status: true },
+  const [rawStudents, allSurahs] = await Promise.all([
+    prisma.student.findMany({
+      where: {
+        classId: { in: classIds },
+        status: { in: ["ACTIVE", "GUEST"] },
       },
-      hifzSessions: {
-        orderBy: { date: "desc" },
-        take: 1,
-        select: {
-          date: true,
-          entries: {
-            select: { type: true, fromPage: true, toPage: true, rating: true, mistakeCount: true },
+      select: {
+        id: true,
+        fullName: true,
+        guardianPhone: true,
+        guardianName: true,
+        classId: true,
+        currentTotalPagesMemorized: true,
+        class: { select: { name: true, teacher: { select: { fullName: true } } } },
+        attendanceRecords: {
+          orderBy: { date: "desc" },
+          take: 1,
+          select: { status: true },
+        },
+        hifzSessions: {
+          orderBy: { date: "desc" },
+          take: 1,
+          select: {
+            date: true,
+            entries: {
+              select: {
+                type: true,
+                fromSurah: true,
+                fromAyah: true,
+                toAyah: true,
+                surahCompleted: true,
+                pagesCount: true,
+                rating: true,
+                mistakeCount: true,
+                notes: true,
+              },
+            },
           },
         },
       },
-    },
-    orderBy: { fullName: "asc" },
-  })
+      orderBy: { fullName: "asc" },
+    }),
+    prisma.surah.findMany({ select: { number: true, nameAr: true } }),
+  ])
+
+  const surahMap = new Map(allSurahs.map((s) => [s.number, s.nameAr]))
 
   const students = rawStudents.map((s) => {
     const sess = s.hifzSessions[0]
-    const newE = sess?.entries.find((e) => e.type === "NEW") ?? null
-    const revE = sess?.entries.find((e) => e.type === "RECENT_REVISION") ?? null
+    const mapEntry = (e: typeof sess extends undefined ? never : NonNullable<typeof sess>["entries"][number]) => ({
+      surahName: e.fromSurah ? (surahMap.get(e.fromSurah) ?? null) : null,
+      fromAyah: e.fromAyah,
+      toAyah: e.toAyah,
+      surahCompleted: e.surahCompleted,
+      pagesCount: e.pagesCount,
+      rating: e.rating,
+      mistakeCount: e.mistakeCount,
+      notes: e.notes,
+    })
     return {
       id: s.id,
       fullName: s.fullName,
@@ -79,15 +102,8 @@ export default async function MessagesPage() {
         ? {
             date: sess.date.toISOString().slice(0, 10),
             attendanceStatus: s.attendanceRecords[0]?.status ?? null,
-            newEntry: newE
-              ? {
-                  fromPage: newE.fromPage,
-                  toPage: newE.toPage,
-                  rating: newE.rating,
-                  mistakeCount: newE.mistakeCount,
-                }
-              : null,
-            revEntry: revE ? { fromPage: revE.fromPage, toPage: revE.toPage } : null,
+            newEntries: sess.entries.filter((e) => e.type === "NEW").map(mapEntry),
+            revEntries: sess.entries.filter((e) => e.type === "RECENT_REVISION").map(mapEntry),
           }
         : null,
     }
