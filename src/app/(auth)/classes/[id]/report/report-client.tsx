@@ -1,13 +1,13 @@
 "use client"
 
 import { useRouter } from "next/navigation"
-import { useState } from "react"
+import { useState, useEffect, useTransition } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Download } from "lucide-react"
+import { Download, Loader2 } from "lucide-react"
 
 export type StudentRow = {
   id: string
@@ -54,6 +54,11 @@ export function ReportClient({
   const router = useRouter()
   const [fromDate, setFromDate] = useState(from)
   const [toDate, setToDate] = useState(to)
+  const [isPending, startTransition] = useTransition()
+
+  // Sync inputs when server sends updated date range (e.g. after class change)
+  useEffect(() => { setFromDate(from) }, [from])
+  useEffect(() => { setToDate(to) }, [to])
 
   function applyFilter() {
     const params = new URLSearchParams()
@@ -61,7 +66,9 @@ export function ReportClient({
     if (toDate) params.set("to", toDate)
     const base = filterPath ?? `/classes/${classId}/report`
     const sep = base.includes("?") ? "&" : "?"
-    router.push(`${base}${sep}${params.toString()}`)
+    startTransition(() => {
+      router.push(`${base}${sep}${params.toString()}`)
+    })
   }
 
   function downloadCSV() {
@@ -149,7 +156,8 @@ export function ReportClient({
             className="w-40"
           />
         </div>
-        <Button onClick={applyFilter} className="bg-green-600 hover:bg-green-700 text-white">
+        <Button onClick={applyFilter} disabled={isPending} className="bg-green-600 hover:bg-green-700 text-white gap-2">
+          {isPending && <Loader2 className="h-4 w-4 animate-spin" />}
           تطبيق
         </Button>
         <Button variant="outline" className="gap-2 ms-auto" onClick={downloadCSV}>
@@ -216,7 +224,11 @@ export function ReportClient({
               {/* Mobile cards */}
               <div className="md:hidden divide-y">
                 {students.map((s) => (
-                  <div key={s.id} className="px-4 py-3 space-y-1.5">
+                  <div
+                    key={s.id}
+                    className="px-4 py-3 space-y-1.5 cursor-pointer hover:bg-muted/30 transition-colors"
+                    onClick={() => router.push(`/students/${s.id}/history`)}
+                  >
                     <div className="flex items-center gap-3">
                       <Avatar className="h-8 w-8 shrink-0">
                         <AvatarImage src={s.photoUrl ?? undefined} alt={s.fullName} />
@@ -266,7 +278,11 @@ export function ReportClient({
                   </thead>
                   <tbody className="divide-y">
                     {students.map((s) => (
-                      <tr key={s.id} className="hover:bg-muted/20 transition-colors">
+                      <tr
+                        key={s.id}
+                        className="hover:bg-muted/20 transition-colors cursor-pointer"
+                        onClick={() => router.push(`/students/${s.id}/history`)}
+                      >
                         <td className="px-4 py-3">
                           <div className="flex items-center gap-3">
                             <Avatar className="h-9 w-9 shrink-0">
