@@ -25,21 +25,24 @@ import { Camera } from "lucide-react"
 type ClassOption = { id: string; name: string }
 
 type StudentData = {
-  id:               string
-  fullName:         string
-  gender:           string
-  dateOfBirth:      Date | null
-  nationalId:       string | null
-  schoolGrade:      string | null
-  neighborhood:     string | null
-  guardianName:     string | null
-  guardianPhone:    string | null
-  secondaryPhone:   string | null
-  previousHifzPages: number | null
-  classId:          string | null
-  notes:            string | null
-  status:           string
-  photoUrl:         string | null
+  id:                  string
+  fullName:            string
+  gender:              string
+  dateOfBirth:         Date | null
+  nationalId:          string | null
+  schoolGrade:         string | null
+  neighborhood:        string | null
+  guardianName:        string | null
+  guardianPhone:       string | null
+  secondaryPhone:      string | null
+  guardianOccupation:  string | null
+  paymentNumber:       string | null
+  paymentMethod:       string | null
+  previousHifzPages:   number | null
+  classId:             string | null
+  notes:               string | null
+  status:              string
+  photoUrl:            string | null
 }
 
 export function StudentForm({
@@ -62,11 +65,12 @@ export function StudentForm({
 
   const [state, formAction, pending] = useActionState<StudentFormState, FormData>(action, {})
 
-  const [gender,  setGender]  = useState(student?.gender ?? "MALE")
-  const [classId, setClassId] = useState(student?.classId ?? defaultClassId ?? "")
-  const [status,  setStatus]  = useState(student?.status ?? "ACTIVE")
-  const [photoPreview, setPhotoPreview] = useState<string | null>(student?.photoUrl ?? null)
-  const [uploading, setUploading] = useState(false)
+  const [gender,        setGender]        = useState(student?.gender ?? "MALE")
+  const [classId,       setClassId]       = useState(student?.classId ?? defaultClassId ?? "")
+  const [status,        setStatus]        = useState(student?.status ?? "ACTIVE")
+  const [paymentMethod, setPaymentMethod] = useState(student?.paymentMethod ?? "")
+  const [photoPreview, setPhotoPreview]   = useState<string | null>(student?.photoUrl ?? null)
+  const [uploading, setUploading]         = useState(false)
 
   if (state.success) {
     toast.success(student ? "تم تحديث بيانات الطالب" : "تم إضافة الطالب")
@@ -104,6 +108,7 @@ export function StudentForm({
     <form action={formAction} className="space-y-6">
       <input type="hidden" name="gender" value={gender} />
       <input type="hidden" name="classId" value={classId} />
+      <input type="hidden" name="paymentMethod" value={paymentMethod} />
       {isPrincipal && <input type="hidden" name="status" value={status} />}
 
       {/* Photo — only shown for existing students */}
@@ -194,6 +199,31 @@ export function StudentForm({
         <div className="space-y-2">
           <Label htmlFor="secondaryPhone">هاتف ثانوي</Label>
           <Input id="secondaryPhone" name="secondaryPhone" dir="ltr" placeholder="+9665xxxxxxxx" defaultValue={student?.secondaryPhone ?? ""} />
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="guardianOccupation">مهنة ولي الأمر</Label>
+          <Input id="guardianOccupation" name="guardianOccupation" defaultValue={student?.guardianOccupation ?? ""} />
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="paymentNumber">رقم التحويل</Label>
+          <Input id="paymentNumber" name="paymentNumber" dir="ltr" defaultValue={student?.paymentNumber ?? ""} />
+        </div>
+
+        <div className="space-y-2">
+          <Label>طريقة الدفع</Label>
+          <Select value={paymentMethod || "_none"} onValueChange={(v) => { if (v != null) setPaymentMethod(v === "_none" ? "" : v) }}>
+            <SelectTrigger><SelectValue placeholder="اختر طريقة الدفع" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="_none">غير محدد</SelectItem>
+              <SelectItem value="PALPAL">فلسطيني (PalPay)</SelectItem>
+              <SelectItem value="JAWWAL_PAY">جوال باي</SelectItem>
+              <SelectItem value="MALCHAT">ملكات</SelectItem>
+              <SelectItem value="BANK_PALESTINE">بنك فلسطين</SelectItem>
+              <SelectItem value="OTHER">أخرى</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
 
         <div className="space-y-2">

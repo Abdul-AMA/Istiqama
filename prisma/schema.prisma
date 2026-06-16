@@ -31,6 +31,25 @@ enum SardType {
   GROUP
 }
 
+enum SardSource {
+  LOCAL
+  DARUL_QURAN
+  AWQAF
+}
+
+enum SardKind {
+  SARD
+  EXAM
+}
+
+enum PaymentMethod {
+  PALPAL
+  JAWWAL_PAY
+  MALCHAT
+  BANK_PALESTINE
+  OTHER
+}
+
 enum ClassStatus {
   ACTIVE
   INACTIVE
@@ -89,6 +108,7 @@ model Surah {
 model User {
   id           String   @id @default(cuid())
   fullName     String
+  kunya        String?
   email        String   @unique
   passwordHash String
   role         Role     @default(TEACHER)
@@ -117,10 +137,13 @@ model Student {
   nationalId    String?
   schoolGrade   String?
   neighborhood  String?
-  guardianName  String?
-  guardianPhone String?
-  secondaryPhone String?
-  previousHifzPages Int?
+  guardianName       String?
+  guardianPhone      String?
+  secondaryPhone     String?
+  guardianOccupation String?
+  paymentNumber      String?
+  paymentMethod      PaymentMethod?
+  previousHifzPages  Int?
   enrollmentDate DateTime    @default(now()) @db.Date
   status       StudentStatus @default(ACTIVE)
   notes        String?
@@ -270,13 +293,15 @@ model MessageCategory {
 // ─── Sard Records ─────────────────────────────────────────────────────────────
 
 model SardRecord {
-  id       String   @id @default(cuid())
+  id       String     @id @default(cuid())
   type     SardType
-  date     DateTime @db.Date
+  source   SardSource @default(LOCAL)
+  kind     SardKind   @default(SARD)
+  date     DateTime   @db.Date
   fromJuz  Int
   toJuz    Int
   rating   Int
-  mistakes Int      @default(0)
+  mistakes Int        @default(0)
   notes    String?
 
   studentId        String

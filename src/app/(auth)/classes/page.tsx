@@ -14,13 +14,13 @@ export default async function ClassesPage() {
       where,
       select: {
         id: true, name: true, level: true, location: true, capacity: true, status: true,
-        teacher: { select: { id: true, fullName: true } },
+        teacher: { select: { id: true, fullName: true, kunya: true } },
         _count:  { select: { students: { where: { status: { in: ["ACTIVE" as const, "GUEST" as const] } } } } },
       },
       orderBy: { createdAt: "desc" },
     }),
     role === "PRINCIPAL"
-      ? prisma.user.findMany({ where: { role: "TEACHER", isActive: true }, select: { id: true, fullName: true } })
+      ? prisma.user.findMany({ where: { role: "TEACHER", isActive: true }, select: { id: true, fullName: true, kunya: true } })
       : Promise.resolve([]),
   ])
 

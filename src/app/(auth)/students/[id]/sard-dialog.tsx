@@ -33,12 +33,18 @@ const RATING_OPTIONS = [
 export function SardDialog({
   studentId,
   defaultType,
+  defaultSource,
+  defaultKind,
 }: {
-  studentId:   string
-  defaultType: "INDIVIDUAL" | "GROUP"
+  studentId:     string
+  defaultType:   "INDIVIDUAL" | "GROUP"
+  defaultSource?: "LOCAL" | "DARUL_QURAN" | "AWQAF"
+  defaultKind?:  "SARD" | "EXAM"
 }) {
   const [open, setOpen] = useState(false)
-  const [type, setType] = useState<string>(defaultType)
+  const [type,   setType]   = useState<string>(defaultType)
+  const [source, setSource] = useState<string>(defaultSource ?? "LOCAL")
+  const [kind,   setKind]   = useState<string>(defaultKind ?? "SARD")
   const [rating, setRating] = useState<string>("4")
   const router = useRouter()
 
@@ -66,12 +72,37 @@ export function SardDialog({
             <DialogTitle>تسجيل سرد جديد</DialogTitle>
           </DialogHeader>
           <form action={formAction} className="space-y-4">
-            <input type="hidden" name="type" value={type} />
+            <input type="hidden" name="type"   value={type} />
+            <input type="hidden" name="source" value={source} />
+            <input type="hidden" name="kind"   value={kind} />
             <input type="hidden" name="rating" value={rating} />
 
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-2">
-                <Label>نوع السرد</Label>
+                <Label>الجهة</Label>
+                <Select value={source} onValueChange={(v) => { if (v != null) setSource(v) }}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="LOCAL">المدرسة المحلية</SelectItem>
+                    <SelectItem value="DARUL_QURAN">دار القران الكريم والسنة</SelectItem>
+                    <SelectItem value="AWQAF">وزارة الأوقاف والشؤون الدينية</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label>النوع</Label>
+                <Select value={kind} onValueChange={(v) => { if (v != null) setKind(v) }}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="SARD">سرد</SelectItem>
+                    <SelectItem value="EXAM">اختبار</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label>فردي / مجتمعي</Label>
                 <Select value={type} onValueChange={(v) => { if (v != null) setType(v) }}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>

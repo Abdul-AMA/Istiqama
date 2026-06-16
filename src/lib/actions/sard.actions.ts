@@ -7,6 +7,8 @@ import { auth } from "@/auth"
 
 const sardSchema = z.object({
   type:     z.enum(["INDIVIDUAL", "GROUP"]),
+  source:   z.enum(["LOCAL", "DARUL_QURAN", "AWQAF"]).default("LOCAL"),
+  kind:     z.enum(["SARD", "EXAM"]).default("SARD"),
   date:     z.string().min(1, "التاريخ مطلوب"),
   fromJuz:  z.coerce.number().int().min(1).max(30),
   toJuz:    z.coerce.number().int().min(1).max(30),
@@ -44,6 +46,8 @@ export async function createSardRecord(
 
   const raw = {
     type:     formData.get("type"),
+    source:   formData.get("source") || "LOCAL",
+    kind:     formData.get("kind") || "SARD",
     date:     formData.get("date"),
     fromJuz:  formData.get("fromJuz"),
     toJuz:    formData.get("toJuz"),
@@ -61,6 +65,8 @@ export async function createSardRecord(
   await prisma.sardRecord.create({
     data: {
       type:            data.type,
+      source:          data.source,
+      kind:            data.kind,
       date:            new Date(data.date),
       fromJuz:         data.fromJuz,
       toJuz:           data.toJuz,

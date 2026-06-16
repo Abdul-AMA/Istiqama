@@ -11,16 +11,24 @@ export default async function ReportCardsPage() {
     role === "PRINCIPAL"
       ? await prisma.class.findMany({
           where: { status: "ACTIVE" },
-          select: { id: true, name: true, teacher: { select: { fullName: true } } },
+          select: { id: true, name: true, teacher: { select: { fullName: true, kunya: true } } },
         })
       : await prisma.class.findMany({
           where: { teacherId: userId, status: "ACTIVE" },
-          select: { id: true, name: true, teacher: { select: { fullName: true } } },
+          select: { id: true, name: true, teacher: { select: { fullName: true, kunya: true } } },
         })
 
   const classIds = classes.map((c) => c.id)
   const classMap = new Map(
-    classes.map((c) => [c.id, { name: c.name, teacherName: c.teacher.fullName }]),
+    classes.map((c) => [
+      c.id,
+      {
+        name: c.name,
+        teacherName: c.teacher.kunya
+          ? `${c.teacher.fullName} (${c.teacher.kunya})`
+          : c.teacher.fullName,
+      },
+    ]),
   )
 
   const rawStudents = await prisma.student.findMany({

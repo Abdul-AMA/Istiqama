@@ -47,12 +47,13 @@ export default async function StudentDetailPage({ params }: Props) {
       id: true, fullName: true, gender: true, dateOfBirth: true, photoUrl: true,
       nationalId: true, schoolGrade: true, neighborhood: true,
       guardianName: true, guardianPhone: true, secondaryPhone: true,
+      guardianOccupation: true, paymentNumber: true, paymentMethod: true,
       previousHifzPages: true, enrollmentDate: true, status: true, notes: true,
       currentTotalPagesMemorized: true, classId: true,
       class: { select: { id: true, name: true } },
       sardRecords: {
         orderBy: { date: "desc" },
-        select: { id: true, type: true, date: true, fromJuz: true, toJuz: true, rating: true, mistakes: true, notes: true },
+        select: { id: true, type: true, source: true, kind: true, date: true, fromJuz: true, toJuz: true, rating: true, mistakes: true, notes: true },
       },
       hifzSessions: {
         take:    5,
@@ -88,9 +89,15 @@ export default async function StudentDetailPage({ params }: Props) {
 
   const lastSession = student.hifzSessions[0]?.date
 
-  // Latest sard by type
-  const lastIndividualSard = student.sardRecords.find((r) => r.type === "INDIVIDUAL")
-  const lastGroupSard      = student.sardRecords.find((r) => r.type === "GROUP")
+  const SARD_SOURCES = ["LOCAL", "DARUL_QURAN", "AWQAF"] as const
+  type SardSource = typeof SARD_SOURCES[number]
+  const SOURCE_LABELS: Record<SardSource, string> = {
+    LOCAL:       "المدرسة المحلية",
+    DARUL_QURAN: "دار القران الكريم والسنة",
+    AWQAF:       "وزارة الأوقاف والشؤون الدينية",
+  }
+  const findLatestSard = (source: string, type: string, kind: string) =>
+    student.sardRecords.find((r) => r.source === source && r.type === type && r.kind === kind) ?? null
 
   const statusMap: Record<string, { label: string; className: string }> = {
     ACTIVE:    { label: "على المسار",     className: "bg-green-100 text-green-800" },
@@ -178,7 +185,8 @@ export default async function StudentDetailPage({ params }: Props) {
           <CardTitle className="text-base">بيانات ولي الأمر</CardTitle>
         </CardHeader>
         <CardContent className="grid grid-cols-1 gap-y-3 text-sm md:grid-cols-2">
-          <InfoRow label="اسم ولي الأمر" value={student.guardianName ?? "—"} />
+          <InfoRow label="اسم ولي الأمر"  value={student.guardianName ?? "—"} />
+          <InfoRow label="مهنة ولي الأمر" value={student.guardianOccupation ?? "—"} />
           <div>
             <p className="text-muted-foreground mb-0.5">الهاتف الأول</p>
             <WhatsAppLink phone={student.guardianPhone} label="ولي الأمر" />
@@ -187,6 +195,19 @@ export default async function StudentDetailPage({ params }: Props) {
             <p className="text-muted-foreground mb-0.5">الهاتف الثاني</p>
             <WhatsAppLink phone={student.secondaryPhone} label="ولي الأمر 2" />
           </div>
+          {(student.paymentNumber || student.paymentMethod) && (
+            <>
+              <InfoRow label="رقم التحويل" value={student.paymentNumber ?? "—"} />
+              <InfoRow label="طريقة الدفع" value={
+                student.paymentMethod === "PALPAL"          ? "فلسطيني (PalPay)"
+                : student.paymentMethod === "JAWWAL_PAY"   ? "جوال باي"
+                : student.paymentMethod === "MALCHAT"      ? "ملكات"
+                : student.paymentMethod === "BANK_PALESTINE" ? "بنك فلسطين"
+                : student.paymentMethod === "OTHER"        ? "أخرى"
+                : "—"
+              } />
+            </>
+          )}
         </CardContent>
       </Card>
 
@@ -204,20 +225,19 @@ export default async function StudentDetailPage({ params }: Props) {
 
           <Separator />
 
-          {/* سرد cards */}
-          <div className="grid grid-cols-2 gap-4">
-            <SardCard
-              title="آخر سرد فردي"
-              sard={lastIndividualSard ?? null}
-              studentId={id}
-              type="INDIVIDUAL"
-            />
-            <SardCard
-              title="آخر سرد مجتمعي"
-              sard={lastGroupSard ?? null}
-              studentId={id}
-              type="GROUP"
-            />
+          {/* سرد sections — one per source */}
+          <div className="space-y-5">
+            {SARD_SOURCES.map((src) => (
+              <div key={src} className="space-y-2">
+                <p className="text-sm font-semibold">{SOURCE_LABELS[src]}</p>
+                <div className="grid grid-cols-2 gap-3">
+                  <SardCard title="سرد فردي"     sard={findLatestSard(src, "INDIVIDUAL", "SARD")} studentId={id} defaultSource={src} defaultType="INDIVIDUAL" defaultKind="SARD" />
+                  <SardCard title="سرد مجتمعي"   sard={findLatestSard(src, "GROUP",      "SARD")} studentId={id} defaultSource={src} defaultType="GROUP"      defaultKind="SARD" />
+                  <SardCard title="اختبار فردي"  sard={findLatestSard(src, "INDIVIDUAL", "EXAM")} studentId={id} defaultSource={src} defaultType="INDIVIDUAL" defaultKind="EXAM" />
+                  <SardCard title="اختبار مجتمعي" sard={findLatestSard(src, "GROUP",     "EXAM")} studentId={id} defaultSource={src} defaultType="GROUP"      defaultKind="EXAM" />
+                </div>
+              </div>
+            ))}
           </div>
 
           {/* Full sard history */}
@@ -233,8 +253,11 @@ export default async function StudentDetailPage({ params }: Props) {
                   {student.sardRecords.map((r) => (
                     <div key={r.id} className="flex items-center gap-3 text-sm py-2 border-b last:border-0">
                       <Badge variant="outline" className="shrink-0 text-xs">
-                        {r.type === "INDIVIDUAL" ? "فردي" : "مجتمعي"}
+                        {r.kind === "EXAM" ? "اختبار" : "سرد"} {r.type === "INDIVIDUAL" ? "فردي" : "مجتمعي"}
                       </Badge>
+                      <span className="text-xs text-muted-foreground">
+                        {r.source === "DARUL_QURAN" ? "دار القران" : r.source === "AWQAF" ? "الأوقاف" : "محلي"}
+                      </span>
                       <span>جزء {r.fromJuz}{r.toJuz !== r.fromJuz ? ` ← ${r.toJuz}` : ""}</span>
                       <Badge className={`text-xs ${RATING_COLORS[r.rating] ?? ""}`}>
                         {RATING_LABELS[r.rating] ?? r.rating}
@@ -285,6 +308,8 @@ function InfoRow({ label, value }: { label: string; value: string }) {
 type SardRecord = {
   id:      string
   type:    string
+  source:  string
+  kind:    string
   date:    Date
   fromJuz: number
   toJuz:   number
@@ -297,12 +322,16 @@ function SardCard({
   title,
   sard,
   studentId,
-  type,
+  defaultType,
+  defaultSource,
+  defaultKind,
 }: {
-  title:     string
-  sard:      SardRecord | null
-  studentId: string
-  type:      "INDIVIDUAL" | "GROUP"
+  title:         string
+  sard:          SardRecord | null
+  studentId:     string
+  defaultType:   "INDIVIDUAL" | "GROUP"
+  defaultSource: "LOCAL" | "DARUL_QURAN" | "AWQAF"
+  defaultKind:   "SARD" | "EXAM"
 }) {
   const formatDate = (d: Date) =>
     new Date(d).toLocaleDateString("ar-SA", { year: "numeric", month: "short", day: "numeric" })
@@ -311,7 +340,7 @@ function SardCard({
     <div className="rounded-lg border p-3 space-y-2">
       <div className="flex items-center justify-between">
         <p className="text-sm font-medium">{title}</p>
-        <SardDialog studentId={studentId} defaultType={type} />
+        <SardDialog studentId={studentId} defaultType={defaultType} defaultSource={defaultSource} defaultKind={defaultKind} />
       </div>
       {sard ? (
         <div className="text-sm space-y-1">

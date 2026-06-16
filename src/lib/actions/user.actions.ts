@@ -12,6 +12,7 @@ function requirePrincipal(role: string | undefined) {
 
 const teacherSchema = z.object({
   fullName: z.string().min(2, "الاسم مطلوب"),
+  kunya:    z.string().optional(),
   email:    z.string().email("بريد إلكتروني غير صحيح"),
   phone:    z.string().optional(),
   password: z.string().min(6, "كلمة المرور 6 أحرف على الأقل").optional(),
@@ -31,6 +32,7 @@ export async function createTeacher(
 
   const raw = {
     fullName: formData.get("fullName"),
+    kunya:    formData.get("kunya") || undefined,
     email:    formData.get("email"),
     phone:    formData.get("phone") || undefined,
     password: formData.get("password"),
@@ -39,7 +41,7 @@ export async function createTeacher(
   const parsed = teacherSchema.safeParse(raw)
   if (!parsed.success) return { error: parsed.error.errors[0].message }
 
-  const { fullName, email, phone, password } = parsed.data
+  const { fullName, kunya, email, phone, password } = parsed.data
   if (!password) return { error: "كلمة المرور مطلوبة" }
 
   const exists = await prisma.user.findUnique({ where: { email } })
@@ -48,7 +50,7 @@ export async function createTeacher(
   const passwordHash = await bcrypt.hash(password, 12)
   try {
     await prisma.user.create({
-      data: { fullName, email, phone, passwordHash, role: "TEACHER", isActive: true },
+      data: { fullName, kunya: kunya || null, email, phone, passwordHash, role: "TEACHER", isActive: true },
     })
   } catch {
     return { error: "حدث خطأ أثناء إنشاء الحساب — يرجى المحاولة مرة أخرى" }
@@ -68,6 +70,7 @@ export async function updateTeacher(
 
   const raw = {
     fullName: formData.get("fullName"),
+    kunya:    formData.get("kunya") || undefined,
     email:    formData.get("email"),
     phone:    formData.get("phone") || undefined,
   }
@@ -75,12 +78,12 @@ export async function updateTeacher(
   const parsed = teacherSchema.omit({ password: true }).safeParse(raw)
   if (!parsed.success) return { error: parsed.error.errors[0].message }
 
-  const { fullName, email, phone } = parsed.data
+  const { fullName, kunya, email, phone } = parsed.data
 
   const existing = await prisma.user.findFirst({ where: { email, NOT: { id } } })
   if (existing) return { error: "البريد الإلكتروني مستخدم مسبقاً" }
 
-  await prisma.user.update({ where: { id }, data: { fullName, email, phone } })
+  await prisma.user.update({ where: { id }, data: { fullName, kunya: kunya || null, email, phone } })
   revalidatePath("/admin/users")
   return { success: true }
 }

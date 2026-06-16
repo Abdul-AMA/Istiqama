@@ -35,6 +35,7 @@ import { toast } from "sonner"
 type Teacher = {
   id:       string
   fullName: string
+  kunya:    string | null
   email:    string
   phone:    string | null
   isActive: boolean
@@ -85,7 +86,7 @@ export function TeacherTable({ teachers }: { teachers: Teacher[] }) {
               <div key={t.id} className="rounded-lg border bg-card p-4 space-y-3">
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0">
-                    <p className="font-medium truncate">{t.fullName}</p>
+                    <p className="font-medium truncate">{t.fullName}{t.kunya ? ` (${t.kunya})` : ""}</p>
                     <p className="text-sm text-muted-foreground truncate" dir="ltr">{t.email}</p>
                     {t.phone && <p className="text-xs text-muted-foreground" dir="ltr">{t.phone}</p>}
                   </div>
@@ -131,7 +132,7 @@ export function TeacherTable({ teachers }: { teachers: Teacher[] }) {
               <TableBody>
                 {teachers.map((t) => (
                   <TableRow key={t.id}>
-                    <TableCell className="font-medium">{t.fullName}</TableCell>
+                    <TableCell className="font-medium">{t.fullName}{t.kunya ? ` (${t.kunya})` : ""}</TableCell>
                     <TableCell className="text-sm" dir="ltr">{t.email}</TableCell>
                     <TableCell className="text-sm" dir="ltr">{t.phone ?? "—"}</TableCell>
                     <TableCell>{t._count.classes}</TableCell>
@@ -216,6 +217,10 @@ function TeacherForm({
       <div className="space-y-2">
         <Label htmlFor="fullName">الاسم الكامل</Label>
         <Input id="fullName" name="fullName" defaultValue={teacher?.fullName} required />
+      </div>
+      <div className="space-y-2">
+        <Label htmlFor="kunya">الكنية</Label>
+        <Input id="kunya" name="kunya" placeholder="أبو محمد" defaultValue={teacher?.kunya ?? ""} />
       </div>
       <div className="space-y-2">
         <Label htmlFor="email">البريد الإلكتروني</Label>

@@ -37,11 +37,11 @@ type ClassItem = {
   location: string | null
   capacity: number | null
   status:   string
-  teacher:  { id: string; fullName: string }
+  teacher:  { id: string; fullName: string; kunya: string | null }
   _count:   { students: number }
 }
 
-type Teacher = { id: string; fullName: string }
+type Teacher = { id: string; fullName: string; kunya: string | null }
 
 export function ClassesClient({
   classes,
@@ -119,7 +119,7 @@ export function ClassesClient({
               {cls.location && (
                 <p className="text-sm text-muted-foreground">📍 {cls.location}</p>
               )}
-              <p className="text-sm text-muted-foreground">👤 {cls.teacher.fullName}</p>
+              <p className="text-sm text-muted-foreground">👤 {cls.teacher.fullName}{cls.teacher.kunya ? ` (${cls.teacher.kunya})` : ""}</p>
               <div className="flex items-center justify-between pt-1">
                 <Badge variant={cls.status === "ACTIVE" ? "default" : "secondary"}>
                   {cls.status === "ACTIVE" ? "نشطة" : "غير نشطة"}
@@ -184,7 +184,7 @@ function ClassForm({
           </SelectTrigger>
           <SelectContent>
             {teachers.map((t) => (
-              <SelectItem key={t.id} value={t.id}>{t.fullName}</SelectItem>
+              <SelectItem key={t.id} value={t.id}>{t.fullName}{t.kunya ? ` (${t.kunya})` : ""}</SelectItem>
             ))}
           </SelectContent>
         </Select>

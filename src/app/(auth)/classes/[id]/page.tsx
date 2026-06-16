@@ -20,7 +20,7 @@ export default async function ClassDetailPage({ params }: Props) {
     select: {
       id: true, name: true, level: true, location: true,
       teacherId: true,
-      teacher:   { select: { id: true, fullName: true } },
+      teacher:   { select: { id: true, fullName: true, kunya: true } },
       students:  {
         where:   { status: { in: ["ACTIVE" as const, "GUEST" as const] } },
         select: {
@@ -50,7 +50,7 @@ export default async function ClassDetailPage({ params }: Props) {
         <div className="flex-1">
           <h1 className="text-2xl font-bold">{cls.name}</h1>
           <p className="text-muted-foreground">
-            {cls.teacher.fullName}
+            {cls.teacher.fullName}{cls.teacher.kunya ? ` (${cls.teacher.kunya})` : ""}
             {cls.location && ` · ${cls.location}`}
             {cls.level && ` · ${cls.level}`}
           </p>

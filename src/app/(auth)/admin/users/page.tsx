@@ -10,7 +10,11 @@ export default async function AdminUsersPage() {
   const teachers = await prisma.user.findMany({
     where:   { role: "TEACHER" },
     orderBy: { createdAt: "asc" },
-    include: { _count: { select: { classes: true } } },
+    select: {
+      id: true, fullName: true, kunya: true, email: true, phone: true,
+      isActive: true, createdAt: true,
+      _count: { select: { classes: true } },
+    },
   })
 
   return (
