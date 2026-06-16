@@ -25,6 +25,7 @@ import { Button } from "@/components/ui/button"
 import { Sheet, SheetContent } from "@/components/ui/sheet"
 import { cn } from "@/lib/utils"
 import { SyncStatus } from "@/components/sync-status"
+import { OfflineReadiness } from "@/components/offline-readiness"
 
 type NavItem = {
   label: string
@@ -110,6 +111,7 @@ export function MainNav({ role, userName }: Props) {
       </div>
 
       <div className="border-t p-3 space-y-2">
+        {role === "TEACHER" && <OfflineReadiness />}
         <SyncStatus role={role} />
         <div className="px-3 py-2">
           <p className="text-sm font-medium truncate">{userName}</p>

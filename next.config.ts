@@ -10,6 +10,10 @@ const withPWA = withPWAInit({
   fallbacks: {
     document: "/~offline",
   },
+  workboxOptions: {
+    skipWaiting: true,
+    clientsClaim: true,
+  },
 })
 
 const nextConfig: NextConfig = {
