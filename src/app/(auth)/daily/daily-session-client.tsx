@@ -609,17 +609,19 @@ function StudentCard({
 // ─── Main Client Component ────────────────────────────────────────────────────
 
 export function DailySessionClient({
-  classes,
+  classes: classesProp,
   initialClassId,
   initialDate,
-  surahs,
+  surahs: surahsProp,
 }: {
   classes: MyClass[]
   initialClassId: string
   initialDate: string
   surahs: SurahInfo[]
 }) {
-  const [classId, setClassId] = useState(initialClassId || classes[0]?.id || "")
+  const [classes, setClasses] = useState<MyClass[]>(classesProp)
+  const [surahs, setSurahs] = useState<SurahInfo[]>(surahsProp)
+  const [classId, setClassId] = useState(initialClassId || classesProp[0]?.id || "")
   const [date, setDate] = useState(initialDate)
   const [rows, setRows] = useState<StudentRow[]>([])
   const [states, setStates] = useState<Record<string, StudentState>>({})
@@ -631,7 +633,8 @@ export function DailySessionClient({
   const [highlightUnfilled, setHighlightUnfilled] = useState(false)
 
   useEffect(() => {
-    if (typeof navigator !== "undefined") setIsOffline(!navigator.onLine)
+    const offline = typeof navigator !== "undefined" && !navigator.onLine
+    setIsOffline(offline)
     const onOnline = () => setIsOffline(false)
     const onOffline = () => setIsOffline(true)
     window.addEventListener("online", onOnline)
@@ -640,6 +643,38 @@ export function DailySessionClient({
       window.removeEventListener("online", onOnline)
       window.removeEventListener("offline", onOffline)
     }
+  }, [])
+
+  // Persist classes + surahs to IndexedDB when online so offline visits can use them
+  useEffect(() => {
+    if (classesProp.length > 0) {
+      db.cachedData.put({ key: "my-classes", value: classesProp, updatedAt: Date.now() })
+    }
+    if (surahsProp.length > 0) {
+      db.cachedData.put({ key: "all-surahs", value: surahsProp, updatedAt: Date.now() })
+    }
+  }, [classesProp, surahsProp])
+
+  // If we booted offline (props empty because server wasn't reachable), load from IndexedDB
+  useEffect(() => {
+    if (typeof navigator === "undefined" || navigator.onLine) return
+    if (classes.length === 0) {
+      db.cachedData.get("my-classes").then((cached) => {
+        if (cached && Array.isArray(cached.value) && cached.value.length > 0) {
+          const cachedClasses = cached.value as MyClass[]
+          setClasses(cachedClasses)
+          setClassId((prev) => prev || cachedClasses[0]?.id || "")
+        }
+      })
+    }
+    if (surahs.length === 0) {
+      db.cachedData.get("all-surahs").then((cached) => {
+        if (cached && Array.isArray(cached.value)) {
+          setSurahs(cached.value as SurahInfo[])
+        }
+      })
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   const load = useCallback(async (cid: string, d: string) => {
