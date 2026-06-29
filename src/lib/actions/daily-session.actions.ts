@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache"
 import { z } from "zod"
 import { prisma } from "@/lib/prisma"
 import { auth } from "@/auth"
+import { saveDailySessionCore } from "@/lib/daily-session/save"
 
 // ─── Auth helper ─────────────────────────────────────────────────────────────
 
@@ -170,121 +171,8 @@ export async function saveDailySession(input: SaveSessionInput): Promise<SaveSes
     return { error: "غير مصرح" }
   }
 
-  const date = new Date(dateStr)
-
-  // Pre-fetch all surahs needed across all recitations
-  const surahNumbers = [...new Set(entries.flatMap((e) => e.recitations.map((r) => r.surahNumber)))]
-  const surahMap = new Map(
-    (await prisma.surah.findMany({
-      where: { number: { in: surahNumbers } },
-      select: { number: true, nameAr: true, ayahCount: true, startPage: true },
-    })).map((s) => [s.number, s])
-  )
-
-  // Build ordered surah list for end-page calculation
-  const allSurahs = await prisma.surah.findMany({
-    select: { number: true, startPage: true },
-    orderBy: { number: "asc" },
-  })
-  const surahEndPage = new Map<number, number>()
-  for (let i = 0; i < allSurahs.length; i++) {
-    const endPage = i + 1 < allSurahs.length ? allSurahs[i + 1].startPage - 1 : 604
-    surahEndPage.set(allSurahs[i].number, endPage)
-  }
-
   try {
-    await prisma.$transaction(async (tx) => {
-      for (const entry of entries) {
-        const { studentId, attendance, attendanceNotes, generalNotes, recitations } = entry
-
-        await tx.attendanceRecord.upsert({
-          where: { studentId_date: { studentId, date } },
-          create: { studentId, classId, date, status: attendance, notes: attendanceNotes ?? null, recordedByUserId: userId },
-          update: { status: attendance, notes: attendanceNotes ?? null, recordedByUserId: userId },
-        })
-
-        const isPresent = attendance === "PRESENT" || attendance === "LATE"
-
-        if (!isPresent || recitations.length === 0) {
-          const existing = await tx.hifzSession.findUnique({ where: { studentId_date: { studentId, date } } })
-          if (existing) await tx.hifzSession.delete({ where: { id: existing.id } })
-          continue
-        }
-
-        const hifzSession = await tx.hifzSession.upsert({
-          where: { studentId_date: { studentId, date } },
-          create: { studentId, classId, date, generalNotes: generalNotes ?? null, recordedByUserId: userId },
-          update: { generalNotes: generalNotes ?? null, recordedByUserId: userId },
-        })
-
-        await tx.recitationEntry.deleteMany({ where: { hifzSessionId: hifzSession.id } })
-
-        for (const rec of recitations) {
-          const surah = surahMap.get(rec.surahNumber)
-          const fromPage = surah?.startPage ?? 1
-          const toPage = rec.surahCompleted ? (surahEndPage.get(rec.surahNumber) ?? fromPage) : fromPage
-
-          await tx.recitationEntry.create({
-            data: {
-              hifzSessionId: hifzSession.id,
-              type: rec.type,
-              fromPage,
-              toPage,
-              fromSurah: rec.surahNumber,
-              fromAyah: rec.fromAyah,
-              toSurah: rec.surahNumber,
-              toAyah: rec.toAyah,
-              surahCompleted: rec.surahCompleted,
-              pagesCount: rec.pagesCount ?? null,
-              rating: rec.rating,
-              mistakeCount: rec.mistakeCount,
-              notes: rec.notes ?? null,
-            },
-          })
-        }
-
-        // Update student snapshot from NEW entries
-        const newEntries = recitations.filter((r) => r.type === "NEW")
-        if (newEntries.length > 0) {
-          const lastNew = newEntries[newEntries.length - 1]
-          const lastSurah = surahMap.get(lastNew.surahNumber)
-          const surahName = lastSurah?.nameAr ?? ""
-          const sabaqRef = lastNew.surahCompleted
-            ? `${surahName} (كاملة)`
-            : `${surahName}: ${lastNew.fromAyah}–${lastNew.toAyah}`
-
-          const allNewEntries = await tx.recitationEntry.findMany({
-            where: { hifzSession: { studentId }, type: "NEW" },
-            select: { fromPage: true, toPage: true, pagesCount: true },
-          })
-          const student = await tx.student.findUnique({
-            where: { id: studentId },
-            select: { previousHifzPages: true },
-          })
-          const basePrev = student?.previousHifzPages ?? 0
-          let manualPages = 0
-          const legacyPageSet = new Set<number>()
-          for (const e of allNewEntries) {
-            if (e.pagesCount !== null) {
-              manualPages += e.pagesCount
-            } else {
-              for (let p = e.fromPage; p <= e.toPage; p++) legacyPageSet.add(p)
-            }
-          }
-          const total = Math.round(basePrev + manualPages + legacyPageSet.size)
-          const lastJuz = Math.ceil((surahMap.get(lastNew.surahNumber)?.startPage ?? 1) / 20)
-
-          await tx.student.update({
-            where: { id: studentId },
-            data: {
-              currentTotalPagesMemorized: total,
-              currentJuz: lastJuz,
-              lastSabaqReference: sabaqRef,
-            },
-          })
-        }
-      }
-    })
+    await saveDailySessionCore({ classId, date: new Date(dateStr), entries, userId })
   } catch (err) {
     console.error("saveDailySession error:", err)
     return { error: "حدث خطأ أثناء حفظ الجلسة — يرجى المحاولة مرة أخرى" }
