@@ -14,6 +14,9 @@ Quran center management system. Full spec in quran-center-requirements.md — re
 - Dexie.js — IndexedDB offline queue
 - @ducanh2912/next-pwa — service worker + manifest
 - Recharts — dashboards
+- Telegram Bot API used for offline session submission (webhook-based, no polling)
+- Raw-storage-first pattern: every inbound Telegram message is persisted to raw_telegram_messages BEFORE any parsing is attempted. This is non-negotiable — never parse-then-store.
+- Telegram webhook route must respond 200 OK even on internal parse errors, to prevent Telegram's retry mechanism from re-delivering the same message repeatedly.
 
 ## Non-negotiables
 - root html element: dir="rtl" lang="ar" always

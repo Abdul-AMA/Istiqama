@@ -312,6 +312,18 @@ model SardRecord {
   createdAt DateTime @default(now())
 }
 
+// ─── Telegram Raw Inbox ───────────────────────────────────────────────────────
+
+model RawTelegramMessage {
+  id               String   @id @default(cuid())
+  telegramUpdateId BigInt?
+  chatId           BigInt
+  rawText          String
+  receivedAt       DateTime @default(now())
+  parsed           Boolean  @default(false)
+  parseError       String?
+}
+
 model MessageLog {
   id      String         @id @default(cuid())
   channel MessageChannel
