@@ -1,9 +1,13 @@
 /*
- * Telegram webhook receiver — Phase 9a (raw storage only)
+ * Telegram webhook receiver — Phase 10 (payload parsing + record writing)
  *
- * SETUP REQUIRED AFTER DEPLOYMENT:
- *   After every deployment (the URL changes on preview deployments), register
- *   this endpoint with Telegram by calling setWebhook:
+ * SETUP REQUIRED AFTER DEPLOYMENT (MANUAL, NOT AUTOMATED):
+ *   The Vercel deployment URL changes on every redeploy (and on every
+ *   preview deployment). Telegram only delivers to whatever URL was last
+ *   registered via setWebhook, so this endpoint MUST be re-registered
+ *   after any deployment URL change — see docs/telegram-architecture.md
+ *   §13 ("Webhook URL changes after redeployment") and the setWebhook
+ *   call format in §"one-time setup" of docs/02-implementation-phases.md.
  *
  *     curl -X POST "https://api.telegram.org/bot<TOKEN>/setWebhook" \
  *          -H "Content-Type: application/json" \
@@ -20,6 +24,7 @@
 
 import { type NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
+import { processIstqMessage } from "@/lib/telegram/processIstqMessage"
 
 const TELEGRAM_API = "https://api.telegram.org"
 
@@ -50,7 +55,7 @@ export async function POST(req: NextRequest) {
     return new NextResponse(null, { status: 200 })
   }
 
-  await prisma.rawTelegramMessage.create({
+  const rawMessage = await prisma.rawTelegramMessage.create({
     data: {
       telegramUpdateId: updateId != null ? BigInt(updateId) : null,
       chatId: BigInt(chatId),
@@ -61,6 +66,13 @@ export async function POST(req: NextRequest) {
 
   // Everything after the raw insert is best-effort; errors are swallowed.
   try {
+    const result = await processIstqMessage(text)
+
+    await prisma.rawTelegramMessage.update({
+      where: { id: rawMessage.id },
+      data: { parsed: result.parsed, parseError: result.parseError },
+    })
+
     const token = process.env.TELEGRAM_BOT_TOKEN
     if (!token) {
       console.error("[telegram/webhook] TELEGRAM_BOT_TOKEN is not set")
@@ -72,7 +84,7 @@ export async function POST(req: NextRequest) {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             chat_id: chatId,
-            text: "تم استلام رسالتك",
+            text: result.replyText,
           }),
         }
       )

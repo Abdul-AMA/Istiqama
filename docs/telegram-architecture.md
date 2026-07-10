@@ -139,7 +139,7 @@ student_id:attendance_code:hifz_entries:note
 A class of 3 students, one absent, one with two recitation entries:
 
 ```
-ISTQ|7|3|2026-06-24|101:P:N:12:15:4:1:|102:A:::|103:P:N:8:10:3:0_R:1:5:4:0:كرر صفحة 9
+ISTQ|7|3|2026-06-24|101:P:N:12:15:4:1:;102:A:::;103:P:N:8:10:3:0_R:1:5:4:0:كرر صفحة 9
 ```
 
 Breaking down student 103: present, one new entry (pages 8–10, rating 3, 0 mistakes) and one recent-revision entry (pages 1–5, rating 4, 0 mistakes), with a note "كرر صفحة 9".

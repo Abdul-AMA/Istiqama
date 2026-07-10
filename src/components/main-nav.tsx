@@ -20,6 +20,8 @@ import {
   Tags,
   DatabaseBackup,
   BarChart3,
+  FileDown,
+  AlertTriangle,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Sheet, SheetContent } from "@/components/ui/sheet"
@@ -47,6 +49,8 @@ const principalNav: NavItem[] = [
   { label: "الضيوف",         href: "/admin/guests", icon: <UserCheck className="h-5 w-5" /> },
   { label: "فئات الرسائل",   href: "/admin/message-categories", icon: <Tags className="h-5 w-5" /> },
   { label: "النسخ الاحتياطي", href: "/admin/backup",             icon: <DatabaseBackup className="h-5 w-5" /> },
+  { label: "نموذج غير متصل",  href: "/admin/offline-form",       icon: <FileDown className="h-5 w-5" /> },
+  { label: "سجل تيليجرام",    href: "/admin/telegram-log",       icon: <AlertTriangle className="h-5 w-5" /> },
 ]
 
 const teacherNav: NavItem[] = [
@@ -59,6 +63,7 @@ const teacherNav: NavItem[] = [
   { label: "الرسائل",        href: "/messages",   icon: <MessageSquare className="h-5 w-5" /> },
   { label: "التقارير",       href: "/report",     icon: <BarChart3 className="h-5 w-5" /> },
   { label: "كشف الدرجات",   href: "/report-cards", icon: <FileText className="h-5 w-5" /> },
+  { label: "نموذج غير متصل", href: "/teacher/offline-form", icon: <FileDown className="h-5 w-5" /> },
 ]
 
 type Props = {
