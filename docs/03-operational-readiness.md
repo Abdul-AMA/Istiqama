@@ -251,7 +251,7 @@ The project is fully wrapped up when:
 - [x] Phases 10–12 are built, deployed, and tested (`02-implementation-phases.md`)
 - [x] Section 0's Claude Code prompt has been run and reviewed — old Dexie/Background Sync system fully removed (2026-07-21)
 - [x] At least one real teacher has completed a real end-to-end Telegram submission successfully
-- [ ] Section 1's instruction sheet has been generated and delivered to every active teacher
+- [x] Section 1's instruction sheet has been generated (`docs/04-teacher-guide.md`) — [ ] still needs delivering to every active teacher
 - [ ] Section 2's cutover style and date have been explicitly decided and communicated
 - [ ] Section 3's bot branding is set (optional — skip if not worth the time)
 - [x] Section 4's `RUNBOOK.md` exists in the repo
