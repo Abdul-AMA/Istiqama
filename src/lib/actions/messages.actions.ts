@@ -47,7 +47,7 @@ export async function getGroupReportData(classId: string, date: string) {
 
   const cls = await prisma.class.findUnique({
     where: { id: classId },
-    select: { id: true, name: true, teacherId: true, teacher: { select: { fullName: true } } },
+    select: { id: true, name: true, teacherId: true, teacher: { select: { fullName: true, kunya: true } } },
   })
   if (!cls) throw new Error("الحلقة غير موجودة")
   if (role === "TEACHER" && cls.teacherId !== userId) throw new Error("غير مصرح")
@@ -109,10 +109,12 @@ export async function getGroupReportData(classId: string, date: string) {
     return `${name} ${ayahs}${pages} ⭐${rating}${mistakes}`
   }
 
+  const teacherLabel = cls.teacher.kunya || cls.teacher.fullName
+
   const lines: string[] = [
-    `📚 تقرير حلقة ${cls.name}`,
+    `📚 تقرير حلقة "${teacherLabel}"`,
     `📅 ${date}`,
-    `👨‍🏫 المعلم: ${cls.teacher.fullName}`,
+    `👨‍🏫 المعلم: ${teacherLabel}`,
     `─────────────────`,
   ]
 
@@ -154,7 +156,8 @@ export async function getGroupReportData(classId: string, date: string) {
 
   if (absentStudents.length > 0) {
     lines.push(`─────────────────`)
-    lines.push(`❌ الغياب: ${absentStudents.join("، ")}`)
+    lines.push(`❌ الغياب:`)
+    for (const name of absentStudents) lines.push(name)
   }
 
   lines.push(`─────────────────`)

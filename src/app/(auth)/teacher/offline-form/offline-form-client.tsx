@@ -24,12 +24,14 @@ type SurahOption = { number: number; nameAr: string; ayahCount: number; startPag
 export function OfflineFormClient({
   teacherId,
   teacherName,
+  teacherKunya,
   botUsername,
   surahs,
   classes,
 }: {
   teacherId: string
   teacherName: string
+  teacherKunya: string | null
   botUsername: string
   surahs: SurahOption[]
   classes: ClassOption[]
@@ -42,6 +44,7 @@ export function OfflineFormClient({
     const html = generateOfflineFormHtml({
       teacherId,
       teacherName,
+      teacherKunya,
       halaqaId: selected.id,
       halaqaName: selected.name,
       roster: selected.roster,

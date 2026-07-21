@@ -22,6 +22,7 @@ type ClassOption = {
 type TeacherOption = {
   id: string
   fullName: string
+  kunya: string | null
   classes: ClassOption[]
 }
 
@@ -54,6 +55,7 @@ export function AdminOfflineFormClient({
     const html = generateOfflineFormHtml({
       teacherId: teacher.id,
       teacherName: teacher.fullName,
+      teacherKunya: teacher.kunya,
       halaqaId: selectedClass.id,
       halaqaName: selectedClass.name,
       roster: selectedClass.roster,

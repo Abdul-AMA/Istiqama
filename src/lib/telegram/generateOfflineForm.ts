@@ -29,6 +29,7 @@ export interface OfflineFormOptions {
   halaqaId: string
   halaqaName: string
   teacherName: string
+  teacherKunya: string | null
   roster: OfflineFormRosterStudent[]
   surahs: OfflineFormSurah[]
   botUsername: string
@@ -127,10 +128,11 @@ function studentCardHtml(s: OfflineFormRosterStudent): string {
 }
 
 export function generateOfflineFormHtml(opts: OfflineFormOptions): string {
-  const { teacherId, halaqaId, halaqaName, teacherName, roster, surahs, botUsername, generatedAt } = opts
+  const { teacherId, halaqaId, halaqaName, teacherName, teacherKunya, roster, surahs, botUsername, generatedAt } = opts
 
   const cardsHtml = roster.map(studentCardHtml).join("\n")
   const generatedAtLabel = formatTimestamp(generatedAt)
+  const teacherLabel = teacherKunya || teacherName
 
   return `<!doctype html>
 <html dir="rtl" lang="ar">
@@ -284,7 +286,7 @@ export function generateOfflineFormHtml(opts: OfflineFormOptions): string {
 <body>
   <header class="page-head">
     <h1>${escapeHtml(halaqaName)}</h1>
-    <p>المعلم: ${escapeHtml(teacherName)}</p>
+    <p>المعلم: ${escapeHtml(teacherName)}${teacherKunya ? ` (${escapeHtml(teacherKunya)})` : ""}</p>
     <p>آخر تحديث: ${escapeHtml(generatedAtLabel)}</p>
   </header>
 
@@ -326,6 +328,7 @@ export function generateOfflineFormHtml(opts: OfflineFormOptions): string {
   var HALAQA_ID = "${escapeJsString(halaqaId)}";
   var HALAQA_NAME = "${escapeJsString(halaqaName)}";
   var TEACHER_NAME = "${escapeJsString(teacherName)}";
+  var TEACHER_LABEL = "${escapeJsString(teacherLabel)}";
   var BOT_USERNAME = "${escapeJsString(botUsername)}";
   var FORBIDDEN_CHARS = /[:;_|]/g;
   var RATING_OPTIONS_HTML = ${embedJson(RATING_BUTTONS_HTML)};
@@ -642,9 +645,9 @@ export function generateOfflineFormHtml(opts: OfflineFormOptions): string {
   function buildReport() {
     var dateStr = dateInput.value;
     var lines = [
-      "📚 تقرير حلقة " + HALAQA_NAME,
+      "📚 تقرير حلقة \\"" + TEACHER_LABEL + "\\"",
       "📅 " + dateStr,
-      "👨‍🏫 المعلم: " + TEACHER_NAME,
+      "👨‍🏫 المعلم: " + TEACHER_LABEL,
       "─────────────────",
     ];
     var absentList = [];
@@ -683,7 +686,8 @@ export function generateOfflineFormHtml(opts: OfflineFormOptions): string {
 
     if (absentList.length > 0) {
       lines.push("─────────────────");
-      lines.push("❌ الغياب: " + absentList.join("، "));
+      lines.push("❌ الغياب:");
+      absentList.forEach(function (name) { lines.push(name); });
     }
     lines.push("─────────────────");
     lines.push("بارك الله في جميع الطلاب 🤲");

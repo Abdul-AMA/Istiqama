@@ -14,6 +14,7 @@ export default async function AdminOfflineFormPage() {
       select: {
         id: true,
         fullName: true,
+        kunya: true,
         classes: {
           where: { status: "ACTIVE" },
           select: {
@@ -56,6 +57,7 @@ export default async function AdminOfflineFormPage() {
         teachers={teachers.map((t) => ({
           id: t.id,
           fullName: t.fullName,
+          kunya: t.kunya,
           classes: t.classes.map((c) => ({ id: c.id, name: c.name, roster: c.students })),
         }))}
       />

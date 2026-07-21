@@ -8,7 +8,11 @@ export default async function TeacherOfflineFormPage() {
   const session = await auth()
   if (!session?.user) redirect("/login")
 
-  const [classes, surahs] = await Promise.all([
+  const [teacher, classes, surahs] = await Promise.all([
+    prisma.user.findUnique({
+      where: { id: session.user.id! },
+      select: { kunya: true },
+    }),
     prisma.class.findMany({
       where: { teacherId: session.user.id!, status: "ACTIVE" },
       select: {
@@ -45,6 +49,7 @@ export default async function TeacherOfflineFormPage() {
       <OfflineFormClient
         teacherId={session.user.id!}
         teacherName={session.user.name!}
+        teacherKunya={teacher?.kunya ?? null}
         botUsername={botUsername}
         surahs={surahs}
         classes={classes.map((c) => ({
