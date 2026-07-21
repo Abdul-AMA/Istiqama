@@ -45,6 +45,9 @@ type ClassItem = {
 
 type Teacher = { id: string; fullName: string; kunya: string | null }
 
+const LEVEL_OPTIONS = ["الإعدادية", "الثانوية", "الإبتدائية", "البراعم"]
+const FUNDING_BODY_OPTIONS = ["وزارة الاوقاف و الشؤون الدينية", "دار القرآن الكريم والسنة", "اخرى"]
+
 export function ClassesClient({
   classes,
   teachers,
@@ -171,6 +174,15 @@ function ClassForm({
   const action = cls ? updateClass.bind(null, cls.id) : createClass
   const [state, formAction, pending] = useActionState<ClassFormState, FormData>(action, {})
   const [teacherId, setTeacherId] = useState(cls?.teacher.id ?? "")
+  const [level, setLevel] = useState(cls?.level ?? "")
+  const [fundingBody, setFundingBody] = useState(cls?.fundingBody ?? "")
+
+  const teacherItems = teachers.map((t) => ({
+    value: t.id,
+    label: `${t.fullName}${t.kunya ? ` (${t.kunya})` : ""}`,
+  }))
+  const levelItems = [{ value: "_none", label: "بدون" }, ...LEVEL_OPTIONS.map((l) => ({ value: l, label: l }))]
+  const fundingBodyItems = [{ value: "_none", label: "بدون" }, ...FUNDING_BODY_OPTIONS.map((f) => ({ value: f, label: f }))]
 
   if (state.success) {
     onSuccess()
@@ -186,7 +198,13 @@ function ClassForm({
 
       <div className="space-y-2">
         <Label htmlFor="teacherId">المعلم</Label>
-        <Select name="teacherId" value={teacherId} onValueChange={(v) => { if (v != null) setTeacherId(v) }} required>
+        <Select
+          items={teacherItems}
+          name="teacherId"
+          value={teacherId}
+          onValueChange={(v) => { if (v != null) setTeacherId(v) }}
+          required
+        >
           <SelectTrigger id="teacherId">
             <SelectValue placeholder="اختر المعلم" />
           </SelectTrigger>
@@ -202,7 +220,22 @@ function ClassForm({
       <div className="grid grid-cols-2 gap-3">
         <div className="space-y-2">
           <Label htmlFor="level">المستوى</Label>
-          <Input id="level" name="level" placeholder="مثال: جزء عم" defaultValue={cls?.level ?? ""} />
+          <Select
+            items={levelItems}
+            value={level || "_none"}
+            onValueChange={(v) => { if (v != null) setLevel(v === "_none" ? "" : v) }}
+          >
+            <SelectTrigger id="level" className="w-full">
+              <SelectValue placeholder="اختر المستوى" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="_none">بدون</SelectItem>
+              {LEVEL_OPTIONS.map((l) => (
+                <SelectItem key={l} value={l}>{l}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <input type="hidden" name="level" value={level} />
         </div>
         <div className="space-y-2">
           <Label htmlFor="capacity">الطاقة الاستيعابية</Label>
@@ -222,7 +255,22 @@ function ClassForm({
         </div>
         <div className="space-y-2">
           <Label htmlFor="fundingBody">جهة إحتساب الحلقة</Label>
-          <Input id="fundingBody" name="fundingBody" defaultValue={cls?.fundingBody ?? ""} />
+          <Select
+            items={fundingBodyItems}
+            value={fundingBody || "_none"}
+            onValueChange={(v) => { if (v != null) setFundingBody(v === "_none" ? "" : v) }}
+          >
+            <SelectTrigger id="fundingBody" className="w-full">
+              <SelectValue placeholder="اختر الجهة" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="_none">بدون</SelectItem>
+              {FUNDING_BODY_OPTIONS.map((f) => (
+                <SelectItem key={f} value={f}>{f}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <input type="hidden" name="fundingBody" value={fundingBody} />
         </div>
       </div>
 
