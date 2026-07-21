@@ -40,6 +40,14 @@ type Teacher = {
   phone:    string | null
   isActive: boolean
   createdAt: Date
+  nationalId:    string | null
+  dateOfBirth:   Date | null
+  maritalStatus: string | null
+  familySize:    number | null
+  incomeSource:  string | null
+  qualification: string | null
+  teachingStage: string | null
+  roleTitle:     string | null
   _count:   { classes: number }
 }
 
@@ -87,6 +95,7 @@ export function TeacherTable({ teachers }: { teachers: Teacher[] }) {
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0">
                     <p className="font-medium truncate">{t.fullName}{t.kunya ? ` (${t.kunya})` : ""}</p>
+                    {t.roleTitle && <p className="text-xs text-muted-foreground truncate">{t.roleTitle}</p>}
                     <p className="text-sm text-muted-foreground truncate" dir="ltr">{t.email}</p>
                     {t.phone && <p className="text-xs text-muted-foreground" dir="ltr">{t.phone}</p>}
                   </div>
@@ -122,6 +131,7 @@ export function TeacherTable({ teachers }: { teachers: Teacher[] }) {
               <TableHeader>
                 <TableRow>
                   <TableHead>الاسم</TableHead>
+                  <TableHead>الدور</TableHead>
                   <TableHead>البريد الإلكتروني</TableHead>
                   <TableHead>الجوال</TableHead>
                   <TableHead>الحلقات</TableHead>
@@ -133,6 +143,7 @@ export function TeacherTable({ teachers }: { teachers: Teacher[] }) {
                 {teachers.map((t) => (
                   <TableRow key={t.id}>
                     <TableCell className="font-medium">{t.fullName}{t.kunya ? ` (${t.kunya})` : ""}</TableCell>
+                    <TableCell className="text-sm text-muted-foreground">{t.roleTitle ?? "—"}</TableCell>
                     <TableCell className="text-sm" dir="ltr">{t.email}</TableCell>
                     <TableCell className="text-sm" dir="ltr">{t.phone ?? "—"}</TableCell>
                     <TableCell>{t._count.classes}</TableCell>
@@ -230,6 +241,55 @@ function TeacherForm({
         <Label htmlFor="phone">رقم الجوال</Label>
         <Input id="phone" name="phone" dir="ltr" placeholder="+9665xxxxxxxx" defaultValue={teacher?.phone ?? ""} />
       </div>
+
+      <div className="grid grid-cols-2 gap-3">
+        <div className="space-y-2">
+          <Label htmlFor="nationalId">رقم الهوية</Label>
+          <Input id="nationalId" name="nationalId" dir="ltr" defaultValue={teacher?.nationalId ?? ""} />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="dateOfBirth">تاريخ الميلاد</Label>
+          <Input
+            id="dateOfBirth"
+            name="dateOfBirth"
+            type="date"
+            defaultValue={teacher?.dateOfBirth ? new Date(teacher.dateOfBirth).toISOString().slice(0, 10) : ""}
+          />
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-3">
+        <div className="space-y-2">
+          <Label htmlFor="maritalStatus">الحالة الاجتماعية</Label>
+          <Input id="maritalStatus" name="maritalStatus" placeholder="أعزب" defaultValue={teacher?.maritalStatus ?? ""} />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="familySize">عدد أفراد الأسرة</Label>
+          <Input id="familySize" name="familySize" type="number" min={0} defaultValue={teacher?.familySize ?? ""} />
+        </div>
+      </div>
+
+      <div className="space-y-2">
+        <Label htmlFor="incomeSource">مصدر الدخل</Label>
+        <Input id="incomeSource" name="incomeSource" defaultValue={teacher?.incomeSource ?? ""} />
+      </div>
+
+      <div className="space-y-2">
+        <Label htmlFor="qualification">المؤهل العلمي</Label>
+        <Input id="qualification" name="qualification" defaultValue={teacher?.qualification ?? ""} />
+      </div>
+
+      <div className="grid grid-cols-2 gap-3">
+        <div className="space-y-2">
+          <Label htmlFor="teachingStage">المرحلة</Label>
+          <Input id="teachingStage" name="teachingStage" placeholder="الإبتدائية" defaultValue={teacher?.teachingStage ?? ""} />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="roleTitle">طبيعة العمل في الملف</Label>
+          <Input id="roleTitle" name="roleTitle" placeholder="محفظ" defaultValue={teacher?.roleTitle ?? ""} />
+        </div>
+      </div>
+
       {!teacher && (
         <div className="space-y-2">
           <Label htmlFor="password">كلمة المرور</Label>

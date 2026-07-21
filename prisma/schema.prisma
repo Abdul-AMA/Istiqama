@@ -117,6 +117,16 @@ model User {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
+  // Roster import fields (from the center's external teacher database)
+  nationalId      String?
+  dateOfBirth     DateTime? @db.Date
+  maritalStatus   String?
+  familySize      Int?
+  incomeSource    String?
+  qualification   String?
+  teachingStage   String?
+  roleTitle       String?
+
   // Relations
   classes          Class[]          @relation("TeacherClasses")
   attendanceLogged AttendanceRecord[] @relation("RecordedByUser")
@@ -184,6 +194,7 @@ model Class {
   capacity  Int?
   status    ClassStatus @default(ACTIVE)
   sponsorship String?
+  fundingBody String?
   createdAt DateTime    @default(now())
   updatedAt DateTime    @updatedAt
 

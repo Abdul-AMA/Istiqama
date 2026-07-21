@@ -37,6 +37,7 @@ type ClassItem = {
   location:    string | null
   capacity:    number | null
   sponsorship: string | null
+  fundingBody: string | null
   status:      string
   teacher:     { id: string; fullName: string; kunya: string | null }
   _count:      { students: number }
@@ -122,6 +123,9 @@ export function ClassesClient({
               )}
               {cls.sponsorship && (
                 <p className="text-sm text-muted-foreground">🤝 {cls.sponsorship}</p>
+              )}
+              {cls.fundingBody && (
+                <p className="text-sm text-muted-foreground">🏛️ {cls.fundingBody}</p>
               )}
               <p className="text-sm text-muted-foreground">👤 {cls.teacher.fullName}{cls.teacher.kunya ? ` (${cls.teacher.kunya})` : ""}</p>
               <div className="flex items-center justify-between pt-1">
@@ -211,9 +215,15 @@ function ClassForm({
         <Input id="location" name="location" defaultValue={cls?.location ?? ""} />
       </div>
 
-      <div className="space-y-2">
-        <Label htmlFor="sponsorship">الكفالة</Label>
-        <Input id="sponsorship" name="sponsorship" defaultValue={cls?.sponsorship ?? ""} />
+      <div className="grid grid-cols-2 gap-3">
+        <div className="space-y-2">
+          <Label htmlFor="sponsorship">الكفالة</Label>
+          <Input id="sponsorship" name="sponsorship" defaultValue={cls?.sponsorship ?? ""} />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="fundingBody">جهة إحتساب الحلقة</Label>
+          <Input id="fundingBody" name="fundingBody" defaultValue={cls?.fundingBody ?? ""} />
+        </div>
       </div>
 
       {state.error && <p className="text-sm text-destructive">{state.error}</p>}

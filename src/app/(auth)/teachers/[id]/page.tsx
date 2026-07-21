@@ -22,6 +22,14 @@ export default async function TeacherProfilePage({ params }: Props) {
       phone: true,
       isActive: true,
       createdAt: true,
+      nationalId: true,
+      dateOfBirth: true,
+      maritalStatus: true,
+      familySize: true,
+      incomeSource: true,
+      qualification: true,
+      teachingStage: true,
+      roleTitle: true,
       classes: {
         where: { status: "ACTIVE" },
         select: {
@@ -77,6 +85,28 @@ export default async function TeacherProfilePage({ params }: Props) {
           انضم في {new Date(teacher.createdAt).toLocaleDateString("ar-SA")}
         </p>
       </div>
+
+      {/* Roster data */}
+      {(teacher.roleTitle || teacher.teachingStage || teacher.qualification || teacher.nationalId ||
+        teacher.dateOfBirth || teacher.maritalStatus || teacher.familySize != null || teacher.incomeSource) && (
+        <div className="rounded-xl border bg-card p-4 space-y-3">
+          <h2 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide">
+            بيانات إضافية
+          </h2>
+          <div className="grid grid-cols-2 gap-3 text-sm">
+            {teacher.roleTitle && <InfoRow label="طبيعة العمل في الملف" value={teacher.roleTitle} />}
+            {teacher.teachingStage && <InfoRow label="المرحلة" value={teacher.teachingStage} />}
+            {teacher.qualification && <InfoRow label="المؤهل العلمي" value={teacher.qualification} />}
+            {teacher.nationalId && <InfoRow label="رقم الهوية" value={teacher.nationalId} />}
+            {teacher.dateOfBirth && (
+              <InfoRow label="تاريخ الميلاد" value={new Date(teacher.dateOfBirth).toLocaleDateString("ar-SA")} />
+            )}
+            {teacher.maritalStatus && <InfoRow label="الحالة الاجتماعية" value={teacher.maritalStatus} />}
+            {teacher.familySize != null && <InfoRow label="عدد أفراد الأسرة" value={String(teacher.familySize)} />}
+            {teacher.incomeSource && <InfoRow label="مصدر الدخل" value={teacher.incomeSource} />}
+          </div>
+        </div>
+      )}
 
       {/* Classes */}
       <div className="space-y-3">
@@ -137,6 +167,15 @@ export default async function TeacherProfilePage({ params }: Props) {
           </div>
         )}
       </div>
+    </div>
+  )
+}
+
+function InfoRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div>
+      <p className="text-muted-foreground">{label}</p>
+      <p className="font-medium mt-0.5">{value}</p>
     </div>
   )
 }

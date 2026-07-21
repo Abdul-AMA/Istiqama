@@ -13,6 +13,8 @@ export default async function AdminUsersPage() {
     select: {
       id: true, fullName: true, kunya: true, email: true, phone: true,
       isActive: true, createdAt: true,
+      nationalId: true, dateOfBirth: true, maritalStatus: true, familySize: true,
+      incomeSource: true, qualification: true, teachingStage: true, roleTitle: true,
       _count: { select: { classes: true } },
     },
   })

@@ -18,7 +18,7 @@ export default async function ClassDetailPage({ params }: Props) {
   const cls = await prisma.class.findUnique({
     where:  { id },
     select: {
-      id: true, name: true, level: true, location: true, sponsorship: true,
+      id: true, name: true, level: true, location: true, sponsorship: true, fundingBody: true,
       teacherId: true,
       teacher:   { select: { id: true, fullName: true, kunya: true } },
       students:  {
@@ -54,6 +54,7 @@ export default async function ClassDetailPage({ params }: Props) {
             {cls.location && ` · ${cls.location}`}
             {cls.level && ` · ${cls.level}`}
             {cls.sponsorship && ` · 🤝 ${cls.sponsorship}`}
+            {cls.fundingBody && ` · 🏛️ ${cls.fundingBody}`}
           </p>
         </div>
         <div className="flex items-center gap-2">

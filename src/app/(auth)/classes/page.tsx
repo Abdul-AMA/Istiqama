@@ -13,7 +13,7 @@ export default async function ClassesPage() {
     prisma.class.findMany({
       where,
       select: {
-        id: true, name: true, level: true, location: true, capacity: true, sponsorship: true, status: true,
+        id: true, name: true, level: true, location: true, capacity: true, sponsorship: true, fundingBody: true, status: true,
         teacher: { select: { id: true, fullName: true, kunya: true } },
         _count:  { select: { students: { where: { status: { in: ["ACTIVE" as const, "GUEST" as const] } } } } },
       },

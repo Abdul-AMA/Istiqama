@@ -12,6 +12,7 @@ const classSchema = z.object({
   location:    z.string().optional(),
   capacity:    z.coerce.number().int().positive().optional(),
   sponsorship: z.string().optional(),
+  fundingBody: z.string().optional(),
 })
 
 export type ClassFormState = {
@@ -33,6 +34,7 @@ export async function createClass(
     location:    formData.get("location") || undefined,
     capacity:    formData.get("capacity") || undefined,
     sponsorship: formData.get("sponsorship") || undefined,
+    fundingBody: formData.get("fundingBody") || undefined,
   }
 
   const parsed = classSchema.safeParse(raw)
@@ -62,6 +64,7 @@ export async function updateClass(
     location:    formData.get("location") || undefined,
     capacity:    formData.get("capacity") || undefined,
     sponsorship: formData.get("sponsorship") || undefined,
+    fundingBody: formData.get("fundingBody") || undefined,
   }
 
   const parsed = classSchema.safeParse(raw)
