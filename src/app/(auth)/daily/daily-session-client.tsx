@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useTransition, useEffect, useRef } from "react"
 import { toast } from "sonner"
-import { Save, Loader2, BookMarked, GraduationCap, ChevronDown, ChevronUp, Plus, Trash2, WifiOff } from "lucide-react"
+import { Save, Loader2, BookMarked, GraduationCap, ChevronDown, ChevronUp, Plus, Trash2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -22,7 +22,6 @@ import {
   saveDailySession,
   type SaveSessionInput,
 } from "@/lib/actions/daily-session.actions"
-import { db } from "@/lib/db"
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -619,8 +618,8 @@ export function DailySessionClient({
   initialDate: string
   surahs: SurahInfo[]
 }) {
-  const [classes, setClasses] = useState<MyClass[]>(classesProp)
-  const [surahs, setSurahs] = useState<SurahInfo[]>(surahsProp)
+  const [classes] = useState<MyClass[]>(classesProp)
+  const [surahs] = useState<SurahInfo[]>(surahsProp)
   const [classId, setClassId] = useState(initialClassId || classesProp[0]?.id || "")
   const [date, setDate] = useState(initialDate)
   const [rows, setRows] = useState<StudentRow[]>([])
@@ -628,94 +627,18 @@ export function DailySessionClient({
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [saving, startSaving] = useTransition()
-  const [isOffline, setIsOffline] = useState(false)
-  const [fromCache, setFromCache] = useState(false)
   const [highlightUnfilled, setHighlightUnfilled] = useState(false)
-
-  useEffect(() => {
-    const offline = typeof navigator !== "undefined" && !navigator.onLine
-    setIsOffline(offline)
-    const onOnline = () => setIsOffline(false)
-    const onOffline = () => setIsOffline(true)
-    window.addEventListener("online", onOnline)
-    window.addEventListener("offline", onOffline)
-    return () => {
-      window.removeEventListener("online", onOnline)
-      window.removeEventListener("offline", onOffline)
-    }
-  }, [])
-
-  // Persist classes + surahs to IndexedDB when online so offline visits can use them
-  useEffect(() => {
-    if (classesProp.length > 0) {
-      db.cachedData.put({ key: "my-classes", value: classesProp, updatedAt: Date.now() })
-    }
-    if (surahsProp.length > 0) {
-      db.cachedData.put({ key: "all-surahs", value: surahsProp, updatedAt: Date.now() })
-    }
-  }, [classesProp, surahsProp])
-
-  // If we booted offline (props empty because server wasn't reachable), load from IndexedDB
-  useEffect(() => {
-    if (typeof navigator === "undefined" || navigator.onLine) return
-    if (classes.length === 0) {
-      db.cachedData.get("my-classes").then((cached) => {
-        if (cached && Array.isArray(cached.value) && cached.value.length > 0) {
-          const cachedClasses = cached.value as MyClass[]
-          setClasses(cachedClasses)
-          setClassId((prev) => prev || cachedClasses[0]?.id || "")
-        }
-      })
-    }
-    if (surahs.length === 0) {
-      db.cachedData.get("all-surahs").then((cached) => {
-        if (cached && Array.isArray(cached.value)) {
-          setSurahs(cached.value as SurahInfo[])
-        }
-      })
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
 
   const load = useCallback(async (cid: string, d: string) => {
     if (!cid) return
     setLoading(true)
-    setFromCache(false)
     try {
-      if (!navigator.onLine) {
-        const cached = await db.cachedData.get(`roster:${cid}`)
-        if (cached && Array.isArray(cached.value)) {
-          const students = cached.value as StudentData[]
-          const rosterRows: StudentRow[] = students.map((s) => ({
-            student: s,
-            attendance: null,
-            hifzSession: null,
-          }))
-          setRows(rosterRows)
-          const initStates: Record<string, StudentState> = {}
-          for (const row of rosterRows) initStates[row.student.id] = initStudentState(row)
-          setStates(initStates)
-          setExpandedId(rosterRows[0]?.student.id ?? null)
-          setFromCache(true)
-        } else {
-          toast.error("لا تتوفر بيانات محفوظة — اتصل بالإنترنت لتحميل قائمة الطلاب")
-          setRows([])
-        }
-        return
-      }
-
       const data = await loadDailySession(cid, d)
       setRows(data)
       const initStates: Record<string, StudentState> = {}
       for (const row of data) initStates[row.student.id] = initStudentState(row)
       setStates(initStates)
       setExpandedId(data[0]?.student.id ?? null)
-
-      await db.cachedData.put({
-        key: `roster:${cid}`,
-        value: data.map((r) => r.student),
-        updatedAt: Date.now(),
-      })
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "فشل تحميل البيانات")
     } finally {
@@ -785,28 +708,11 @@ export function DailySessionClient({
         }
       })
 
-      if (!navigator.onLine) {
-        await db.pendingOps.add({
-          type: "SAVE_DAILY_SESSION",
-          payload: { classId, date, entries },
-          createdAt: Date.now(),
-          status: "PENDING",
-          retries: 0,
-        })
-        toast.success("سيتم المزامنة لاحقاً ✓")
-        return
-      }
-
       const result = await saveDailySession({ classId, date, entries })
       if ("error" in result) {
         toast.error(result.error)
       } else {
         toast.success("تم الحفظ بنجاح")
-        await db.cachedData.put({
-          key: `roster:${classId}`,
-          value: rows.map((r) => r.student),
-          updatedAt: Date.now(),
-        })
       }
     })
   }
@@ -816,18 +722,6 @@ export function DailySessionClient({
 
   return (
     <div className="space-y-4">
-      {/* Offline indicator */}
-      {isOffline && (
-        <div className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-          <WifiOff className="h-4 w-4 shrink-0" />
-          <span>
-            {fromCache
-              ? "وضع عدم الاتصال — يتم عرض بيانات محفوظة مسبقاً"
-              : "لا يوجد اتصال بالإنترنت"}
-          </span>
-        </div>
-      )}
-
       {/* Class + date */}
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <div className="space-y-1.5">
@@ -875,11 +769,7 @@ export function DailySessionClient({
             <>
               <GraduationCap className="h-12 w-12 mx-auto opacity-30" />
               <p className="text-base font-medium">لا يوجد طلاب في هذه الحلقة</p>
-              <p className="text-sm">
-                {isOffline
-                  ? "لا تتوفر بيانات محفوظة لهذه الحلقة — اتصل بالإنترنت لتحميل القائمة"
-                  : "أضف طلاباً للحلقة من صفحة إدارة الطلاب"}
-              </p>
+              <p className="text-sm">أضف طلاباً للحلقة من صفحة إدارة الطلاب</p>
             </>
           ) : (
             <>
@@ -928,12 +818,10 @@ export function DailySessionClient({
               >
                 {saving ? (
                   <Loader2 className="h-5 w-5 animate-spin" />
-                ) : isOffline ? (
-                  <WifiOff className="h-5 w-5" />
                 ) : (
                   <Save className="h-5 w-5" />
                 )}
-                {isOffline ? "حفظ (سيُزامَن لاحقاً)" : "حفظ الجلسة"}
+                حفظ الجلسة
               </Button>
             </div>
           )}

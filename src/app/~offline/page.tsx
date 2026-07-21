@@ -8,9 +8,6 @@ export default function OfflinePage() {
       <p className="text-muted-foreground max-w-xs">
         لا يمكن تحميل الصفحة حالياً. تحقق من اتصالك وحاول مجدداً.
       </p>
-      <p className="text-sm text-muted-foreground">
-        البيانات المحفوظة محلياً ستُزامن تلقائياً عند عودة الاتصال.
-      </p>
       <button
         onClick={() => window.location.reload()}
         className="mt-2 px-6 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium"

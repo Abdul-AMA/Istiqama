@@ -1,11 +1,9 @@
 "use client"
 
-import { useState, useEffect } from "react"
 import Link from "next/link"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { AddGuestDialog } from "./add-guest-dialog"
-import { db } from "@/lib/db"
 import { GraduationCap } from "lucide-react"
 
 type Student = {
@@ -14,15 +12,6 @@ type Student = {
   photoUrl: string | null
   status: string
   currentTotalPagesMemorized: number
-}
-
-type OfflineGuest = {
-  id: string
-  fullName: string
-  photoUrl: null
-  status: "GUEST"
-  currentTotalPagesMemorized: number
-  lastSabaqReference: null
 }
 
 function StateBadge({ student }: { student: { status: string; currentTotalPagesMemorized: number } }) {
@@ -42,51 +31,11 @@ export function ClassRoster({
   classId: string
   initialStudents: Student[]
 }) {
-  const [offlineGuests, setOfflineGuests] = useState<OfflineGuest[]>([])
-
-  useEffect(() => {
-    // Load any pending offline guests for this class not already in server list
-    async function loadOfflineGuests() {
-      const ops = await db.pendingOps
-        .where("type")
-        .equals("CREATE_GUEST_STUDENT")
-        .toArray()
-
-      const serverIds = new Set(initialStudents.map((s) => s.id))
-      const pending: OfflineGuest[] = ops
-        .filter((op) => {
-          const p = op.payload as { classId: string; localId: string }
-          return p.classId === classId && !serverIds.has(p.localId)
-        })
-        .map((op) => {
-          const p = op.payload as { localId: string; fullName: string }
-          return {
-            id: p.localId,
-            fullName: p.fullName,
-            photoUrl: null,
-            status: "GUEST" as const,
-            currentTotalPagesMemorized: 0,
-            lastSabaqReference: null,
-          }
-        })
-
-      setOfflineGuests(pending)
-    }
-
-    loadOfflineGuests()
-  }, [classId, initialStudents])
-
-  const handleOfflineGuestAdded = (guest: OfflineGuest) => {
-    setOfflineGuests((prev) => [...prev, guest])
-  }
-
-  const allStudents = [...initialStudents, ...offlineGuests]
-
   return (
     <>
-      <AddGuestDialog classId={classId} onOfflineGuestAdded={handleOfflineGuestAdded} />
+      <AddGuestDialog classId={classId} />
 
-      {allStudents.length === 0 ? (
+      {initialStudents.length === 0 ? (
         <div className="text-center py-16 text-muted-foreground">
           <GraduationCap className="h-12 w-12 mx-auto opacity-30" />
           <p className="mt-3 text-base">لا يوجد طلاب في هذه الحلقة بعد</p>
@@ -94,9 +43,8 @@ export function ClassRoster({
         </div>
       ) : (
         <div className="grid gap-3 md:grid-cols-2">
-          {allStudents.map((student) => {
-            const isOffline = offlineGuests.some((g) => g.id === student.id)
-            const card = (
+          {initialStudents.map((student) => (
+            <Link key={student.id} href={`/students/${student.id}`}>
               <div className="flex items-center gap-3 p-4 rounded-lg border bg-card hover:shadow-md transition-shadow cursor-pointer">
                 <Avatar className="h-12 w-12 shrink-0">
                   <AvatarImage src={student.photoUrl ?? undefined} alt={student.fullName} />
@@ -113,24 +61,11 @@ export function ClassRoster({
                 </div>
 
                 <div className="flex items-center gap-2 shrink-0">
-                  {isOffline && (
-                    <span className="text-xs text-muted-foreground bg-muted rounded px-1.5 py-0.5">
-                      في الانتظار
-                    </span>
-                  )}
                   <StateBadge student={student} />
                 </div>
               </div>
-            )
-
-            return isOffline ? (
-              <div key={student.id}>{card}</div>
-            ) : (
-              <Link key={student.id} href={`/students/${student.id}`}>
-                {card}
-              </Link>
-            )
-          })}
+            </Link>
+          ))}
         </div>
       )}
     </>

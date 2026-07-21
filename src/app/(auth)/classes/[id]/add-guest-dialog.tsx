@@ -21,24 +21,13 @@ import {
 } from "@/components/ui/select"
 import { UserPlus } from "lucide-react"
 import { addGuestStudent } from "@/lib/actions/student.actions"
-import { db } from "@/lib/db"
 import { toast } from "sonner"
-
-type OfflineGuest = {
-  id: string
-  fullName: string
-  photoUrl: null
-  status: "GUEST"
-  currentTotalPagesMemorized: number
-  lastSabaqReference: null
-}
 
 interface Props {
   classId: string
-  onOfflineGuestAdded?: (guest: OfflineGuest) => void
 }
 
-export function AddGuestDialog({ classId, onOfflineGuestAdded }: Props) {
+export function AddGuestDialog({ classId }: Props) {
   const router = useRouter()
   const [open, setOpen] = useState(false)
   const [pending, setPending] = useState(false)
@@ -62,52 +51,6 @@ export function AddGuestDialog({ classId, onOfflineGuestAdded }: Props) {
     setPending(true)
     setError(null)
 
-    if (!navigator.onLine) {
-      // Queue for offline sync
-      const localId = `offline-${Date.now()}-${Math.random().toString(36).slice(2)}`
-      const payload = {
-        localId,
-        fullName: fullName.trim(),
-        gender,
-        guardianPhone: guardianPhone || null,
-        notes: notes || null,
-        classId,
-      }
-
-      await db.pendingOps.add({
-        type: "CREATE_GUEST_STUDENT",
-        payload,
-        createdAt: Date.now(),
-        status: "PENDING",
-        retries: 0,
-      })
-
-      // Add to roster cache so daily session sees them offline
-      const cached = await db.cachedData.get(`roster:${classId}`)
-      const existing = (cached?.value as OfflineGuest[] | undefined) ?? []
-      const newGuest: OfflineGuest = {
-        id: localId,
-        fullName: fullName.trim(),
-        photoUrl: null,
-        status: "GUEST",
-        currentTotalPagesMemorized: 0,
-        lastSabaqReference: null,
-      }
-      await db.cachedData.put({
-        key: `roster:${classId}`,
-        value: [...existing, newGuest],
-        updatedAt: Date.now(),
-      })
-
-      onOfflineGuestAdded?.(newGuest)
-      toast.success("سيتم المزامنة لاحقاً ✓")
-      resetForm()
-      setOpen(false)
-      setPending(false)
-      return
-    }
-
-    // Online: use server action via FormData
     const formData = new FormData()
     formData.set("fullName", fullName.trim())
     formData.set("gender", gender)
