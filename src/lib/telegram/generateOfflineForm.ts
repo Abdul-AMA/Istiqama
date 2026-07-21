@@ -115,16 +115,10 @@ function studentCardHtml(s: OfflineFormRosterStudent): string {
       </label>
       <div class="note-counter">0/100</div>
 
-      <div class="homework-block">
+      <div class="section-block homework-section" data-rec-type="HOMEWORK">
         <p class="section-title homework-title">📝 واجب الغد (اختياري — لعرضه في التقرير فقط، لا يُرسَل مع البيانات)</p>
-        <select class="hw-surah surah-select"></select>
-        <div class="hw-fields hidden">
-          <label class="completed-row"><input type="checkbox" class="hw-completed" /><span>السورة كاملة</span></label>
-          <div class="ayah-row">
-            <label>من آية<input type="number" class="hw-from-ayah" min="1" value="1" /></label>
-            <label>إلى آية<input type="number" class="hw-to-ayah" min="1" /></label>
-          </div>
-        </div>
+        <div class="entries-list"></div>
+        <button type="button" class="add-entry-btn">+ إضافة سورة</button>
       </div>
     </div>
     <div class="att-hint">اختر حالة الحضور أولاً</div>
@@ -199,6 +193,7 @@ export function generateOfflineFormHtml(opts: OfflineFormOptions): string {
   }
   .hifz-section { border-color: #86efac; background: #f0fdf4; }
   .muraja-section { border-color: #93c5fd; background: #eff6ff; }
+  .homework-section { border-color: #fcd34d; background: #fffbeb; }
   .section-title { font-size: 13px; font-weight: 700; margin: 0 0 8px; }
   .entries-list:empty::before {
     content: "لا يوجد — اضغط + لإضافة سورة";
@@ -240,10 +235,7 @@ export function generateOfflineFormHtml(opts: OfflineFormOptions): string {
   .note-field { width: 100%; margin-top: 4px; border-radius: 8px; border: 1px solid #d1d5db; padding: 6px 8px; font-size: 13px; font-family: inherit; resize: none; }
   .note-counter { font-size: 11px; color: #9ca3af; text-align: left; }
 
-  .homework-block { margin-top: 12px; border-top: 1px dashed #e5e7eb; padding-top: 10px; }
   .homework-title { color: #92400e; }
-  .hw-surah { width: 100%; height: 38px; border-radius: 8px; border: 1px solid #d1d5db; padding: 0 8px; font-size: 13px; }
-  .hw-fields { margin-top: 8px; }
 
   .card-error { display: none; font-size: 12px; color: #b91c1c; margin-top: 6px; font-weight: 600; }
   .hidden { display: none !important; }
@@ -366,24 +358,30 @@ export function generateOfflineFormHtml(opts: OfflineFormOptions): string {
     return html;
   }
 
-  // ── Dynamic حفظ/مراجعة entry rows ───────────────────────────────────────
-  function createEntryRow() {
+  // ── Dynamic حفظ/مراجعة/واجب الغد entry rows ─────────────────────────────
+  // kind "full" (حفظ جديد / مراجعة) includes pages/rating/mistakes; kind
+  // "homework" is surah + ayah range or كاملة only — no rating fields.
+  function createEntryRow(kind) {
+    var isHomework = kind === "homework";
     var row = document.createElement("div");
     row.className = "entry-row";
+    var extraFields = isHomework ? "" :
+      '<label class="pages-row-label">عدد الصفحات<input type="number" class="entry-pages" min="0.5" step="0.5" /></label>' +
+      '<div class="rating-row">' + RATING_OPTIONS_HTML + '</div>' +
+      '<label class="mistakes-row">عدد الأخطاء<input type="number" class="entry-mistakes" min="0" value="0" /></label>';
     row.innerHTML =
       '<div class="entry-top">' +
         '<select class="entry-surah surah-select"></select>' +
         '<button type="button" class="remove-entry-btn" aria-label="حذف">✕</button>' +
       '</div>' +
       '<div class="entry-fields hidden">' +
-        '<label class="completed-row"><input type="checkbox" class="entry-completed" /><span>تم الحفظ كاملاً</span></label>' +
+        '<label class="completed-row"><input type="checkbox" class="entry-completed" /><span>' +
+          (isHomework ? "السورة كاملة" : "تم الحفظ كاملاً") + '</span></label>' +
         '<div class="ayah-row">' +
           '<label>من آية<input type="number" class="entry-from-ayah" min="1" value="1" /></label>' +
           '<label>إلى آية<input type="number" class="entry-to-ayah" min="1" /></label>' +
         '</div>' +
-        '<label class="pages-row-label">عدد الصفحات<input type="number" class="entry-pages" min="0.5" step="0.5" /></label>' +
-        '<div class="rating-row">' + RATING_OPTIONS_HTML + '</div>' +
-        '<label class="mistakes-row">عدد الأخطاء<input type="number" class="entry-mistakes" min="0" value="0" /></label>' +
+        extraFields +
       '</div>';
 
     var select = row.querySelector(".entry-surah");
@@ -445,7 +443,8 @@ export function generateOfflineFormHtml(opts: OfflineFormOptions): string {
   document.querySelectorAll(".add-entry-btn").forEach(function (btn) {
     btn.addEventListener("click", function () {
       var section = btn.closest(".section-block");
-      section.querySelector(".entries-list").appendChild(createEntryRow());
+      var kind = section.getAttribute("data-rec-type") === "HOMEWORK" ? "homework" : "full";
+      section.querySelector(".entries-list").appendChild(createEntryRow(kind));
     });
   });
 
@@ -480,45 +479,6 @@ export function generateOfflineFormHtml(opts: OfflineFormOptions): string {
       noteField.value = noteField.value.replace(FORBIDDEN_CHARS, " ").slice(0, 100);
       noteCounter.textContent = noteField.value.length + "/100";
     });
-
-    var hwSelect = card.querySelector(".hw-surah");
-    hwSelect.innerHTML = buildSurahOptionsHtml("بدون واجب");
-    var hwFields = card.querySelector(".hw-fields");
-    var hwFrom = card.querySelector(".hw-from-ayah");
-    var hwTo = card.querySelector(".hw-to-ayah");
-    var hwCompleted = card.querySelector(".hw-completed");
-
-    hwSelect.addEventListener("change", function () {
-      var num = hwSelect.value;
-      hwFields.classList.toggle("hidden", !num);
-      if (num) {
-        var s = SURAH_MAP[num];
-        hwFrom.value = "1";
-        hwTo.value = s ? String(s.ayahCount) : "";
-        hwFrom.readOnly = false;
-        hwTo.readOnly = false;
-        hwCompleted.checked = false;
-      }
-      validateAll();
-    });
-
-    hwCompleted.addEventListener("change", function () {
-      var num = hwSelect.value;
-      var s = SURAH_MAP[num];
-      if (hwCompleted.checked && s) {
-        hwFrom.value = "1";
-        hwTo.value = String(s.ayahCount);
-        hwFrom.readOnly = true;
-        hwTo.readOnly = true;
-      } else {
-        hwFrom.readOnly = false;
-        hwTo.readOnly = false;
-      }
-      validateAll();
-    });
-
-    hwFrom.addEventListener("input", validateAll);
-    hwTo.addEventListener("input", validateAll);
   });
 
   // ── Single source of truth: read one card's full state ────────────────
@@ -551,6 +511,28 @@ export function generateOfflineFormHtml(opts: OfflineFormOptions): string {
     return list;
   }
 
+  function readHomeworkEntries(sectionEl, name, problems) {
+    var list = [];
+    sectionEl.querySelectorAll(".entry-row").forEach(function (row) {
+      var surah = row.querySelector(".entry-surah").value;
+      if (!surah) return;
+      var completed = row.querySelector(".entry-completed").checked;
+      var from = row.querySelector(".entry-from-ayah").value || "1";
+      var to = row.querySelector(".entry-to-ayah").value;
+      if (!completed && !to) {
+        problems.push(name + ": بيانات واجب الغد غير مكتملة");
+        return;
+      }
+      list.push({
+        surah: surah,
+        from: from,
+        to: completed ? String(SURAH_MAP[surah].ayahCount) : to,
+        completed: completed,
+      });
+    });
+    return list;
+  }
+
   function readCardState(card) {
     var studentId = card.getAttribute("data-student-id");
     var name = card.getAttribute("data-student-name");
@@ -562,7 +544,7 @@ export function generateOfflineFormHtml(opts: OfflineFormOptions): string {
 
     if (!attCode) problems.push(name + ": لم يُحدَّد الحضور");
 
-    var hifzEntries = [], murajaEntries = [], generalNote = "", homework = null;
+    var hifzEntries = [], murajaEntries = [], generalNote = "", homeworkEntries = [];
 
     if (isPresent) {
       if (!dnr) {
@@ -576,28 +558,13 @@ export function generateOfflineFormHtml(opts: OfflineFormOptions): string {
       var noteField = card.querySelector(".note-field");
       generalNote = (noteField.value || "").replace(FORBIDDEN_CHARS, " ").trim().slice(0, 100);
 
-      var hwSurah = card.querySelector(".hw-surah").value;
-      if (hwSurah) {
-        var hwCompleted = card.querySelector(".hw-completed").checked;
-        var hwFrom = card.querySelector(".hw-from-ayah").value || "1";
-        var hwTo = card.querySelector(".hw-to-ayah").value;
-        if (!hwCompleted && !hwTo) {
-          problems.push(name + ": بيانات واجب الغد غير مكتملة");
-        } else {
-          homework = {
-            surah: hwSurah,
-            from: hwFrom,
-            to: hwCompleted ? String(SURAH_MAP[hwSurah].ayahCount) : hwTo,
-            completed: hwCompleted,
-          };
-        }
-      }
+      homeworkEntries = readHomeworkEntries(card.querySelector('.section-block[data-rec-type="HOMEWORK"]'), name, problems);
     }
 
     return {
       studentId: studentId, name: name, attCode: attCode, isPresent: isPresent, dnr: dnr,
       hifzEntries: hifzEntries, murajaEntries: murajaEntries, generalNote: generalNote,
-      homework: homework, problems: problems,
+      homeworkEntries: homeworkEntries, problems: problems,
     };
   }
 
@@ -706,8 +673,8 @@ export function generateOfflineFormHtml(opts: OfflineFormOptions): string {
         }
       }
 
-      if (state.homework) {
-        lines.push("   📝 واجب الغد: " + fmtSimpleEntry(state.homework));
+      if (state.homeworkEntries.length > 0) {
+        lines.push("   📝 واجب الغد: " + state.homeworkEntries.map(fmtSimpleEntry).join(" | "));
       }
       if (state.generalNote) {
         lines.push("   💬 " + state.generalNote);
