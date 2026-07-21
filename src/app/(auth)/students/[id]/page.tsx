@@ -50,6 +50,8 @@ export default async function StudentDetailPage({ params }: Props) {
       guardianOccupation: true, paymentNumber: true, paymentMethod: true,
       previousHifzPages: true, enrollmentDate: true, status: true, notes: true,
       currentTotalPagesMemorized: true, classId: true,
+      educationStage: true, familySize: true, tajweedLevel: true,
+      commitmentLevel: true, residencyStatus: true,
       class: { select: { id: true, name: true } },
       sardRecords: {
         orderBy: { date: "desc" },
@@ -176,6 +178,11 @@ export default async function StudentDetailPage({ params }: Props) {
           <InfoRow label="المرحلة الدراسية" value={student.schoolGrade ?? "—"} />
           <InfoRow label="الحي"            value={student.neighborhood ?? "—"} />
           <InfoRow label="تاريخ الالتحاق"  value={formatDate(student.enrollmentDate)} />
+          <InfoRow label="المرحلة"        value={student.educationStage ?? "—"} />
+          <InfoRow label="عدد أفراد الأسرة" value={student.familySize != null ? String(student.familySize) : "—"} />
+          <InfoRow label="الأحكام"        value={student.tajweedLevel ?? "—"} />
+          <InfoRow label="الإلتزام"       value={student.commitmentLevel ?? "—"} />
+          <InfoRow label="نازح / مقيم"    value={student.residencyStatus ?? "—"} />
         </CardContent>
       </Card>
 

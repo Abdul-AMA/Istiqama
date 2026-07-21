@@ -43,6 +43,11 @@ type StudentData = {
   notes:               string | null
   status:              string
   photoUrl:            string | null
+  educationStage:      string | null
+  familySize:          number | null
+  tajweedLevel:        string | null
+  commitmentLevel:     string | null
+  residencyStatus:     string | null
 }
 
 export function StudentForm({
@@ -184,6 +189,31 @@ export function StudentForm({
         <div className="space-y-2">
           <Label htmlFor="previousHifzPages">صفحات محفوظة قبل الالتحاق</Label>
           <Input id="previousHifzPages" name="previousHifzPages" type="number" min={0} max={604} defaultValue={student?.previousHifzPages ?? ""} />
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="educationStage">المرحلة</Label>
+          <Input id="educationStage" name="educationStage" placeholder="الإبتدائية" defaultValue={student?.educationStage ?? ""} />
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="familySize">عدد أفراد الأسرة</Label>
+          <Input id="familySize" name="familySize" type="number" min={0} defaultValue={student?.familySize ?? ""} />
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="tajweedLevel">الأحكام</Label>
+          <Input id="tajweedLevel" name="tajweedLevel" defaultValue={student?.tajweedLevel ?? ""} />
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="commitmentLevel">الإلتزام</Label>
+          <Input id="commitmentLevel" name="commitmentLevel" defaultValue={student?.commitmentLevel ?? ""} />
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="residencyStatus">نازح / مقيم</Label>
+          <Input id="residencyStatus" name="residencyStatus" defaultValue={student?.residencyStatus ?? ""} />
         </div>
 
         <div className="space-y-2">

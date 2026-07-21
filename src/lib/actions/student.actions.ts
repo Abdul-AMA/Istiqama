@@ -25,6 +25,11 @@ const studentSchema = z.object({
   classId:             z.string().optional(),
   notes:               z.string().optional(),
   status:              z.enum(["ACTIVE", "INACTIVE", "GRADUATED", "GUEST"]).default("ACTIVE"),
+  educationStage:      z.string().optional(),
+  familySize:          z.coerce.number().int().min(0).optional(),
+  tajweedLevel:        z.string().optional(),
+  commitmentLevel:     z.string().optional(),
+  residencyStatus:     z.string().optional(),
 })
 
 export type StudentFormState = {
@@ -76,6 +81,11 @@ export async function createStudent(
     classId:             classId || undefined,
     notes:               formData.get("notes") || undefined,
     status:              "ACTIVE" as const,
+    educationStage:      formData.get("educationStage") || undefined,
+    familySize:          formData.get("familySize") || undefined,
+    tajweedLevel:        formData.get("tajweedLevel") || undefined,
+    commitmentLevel:     formData.get("commitmentLevel") || undefined,
+    residencyStatus:     formData.get("residencyStatus") || undefined,
   }
 
   const parsed = studentSchema.safeParse(raw)
@@ -101,6 +111,11 @@ export async function createStudent(
         classId:             data.classId || null,
         notes:               data.notes || null,
         status:              "ACTIVE",
+        educationStage:      data.educationStage || null,
+        familySize:          data.familySize ?? null,
+        tajweedLevel:        data.tajweedLevel || null,
+        commitmentLevel:     data.commitmentLevel || null,
+        residencyStatus:     data.residencyStatus || null,
       },
     })
   } catch {
@@ -147,6 +162,11 @@ export async function updateStudent(
     classId:             classId || undefined,
     notes:               formData.get("notes") || undefined,
     status:              (formData.get("status") || "ACTIVE") as string,
+    educationStage:      formData.get("educationStage") || undefined,
+    familySize:          formData.get("familySize") || undefined,
+    tajweedLevel:        formData.get("tajweedLevel") || undefined,
+    commitmentLevel:     formData.get("commitmentLevel") || undefined,
+    residencyStatus:     formData.get("residencyStatus") || undefined,
   }
 
   const parsed = studentSchema.safeParse(raw)
@@ -172,6 +192,11 @@ export async function updateStudent(
       classId:             data.classId || null,
       notes:               data.notes || null,
       status:              data.status,
+      educationStage:      data.educationStage || null,
+      familySize:          data.familySize ?? null,
+      tajweedLevel:        data.tajweedLevel || null,
+      commitmentLevel:     data.commitmentLevel || null,
+      residencyStatus:     data.residencyStatus || null,
     },
   })
 

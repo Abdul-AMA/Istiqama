@@ -6,11 +6,12 @@ import { prisma } from "@/lib/prisma"
 import { auth } from "@/auth"
 
 const classSchema = z.object({
-  name:      z.string().min(1, "اسم الحلقة مطلوب"),
-  teacherId: z.string().min(1, "المعلم مطلوب"),
-  level:     z.string().optional(),
-  location:  z.string().optional(),
-  capacity:  z.coerce.number().int().positive().optional(),
+  name:        z.string().min(1, "اسم الحلقة مطلوب"),
+  teacherId:   z.string().min(1, "المعلم مطلوب"),
+  level:       z.string().optional(),
+  location:    z.string().optional(),
+  capacity:    z.coerce.number().int().positive().optional(),
+  sponsorship: z.string().optional(),
 })
 
 export type ClassFormState = {
@@ -26,11 +27,12 @@ export async function createClass(
   if (session?.user?.role !== "PRINCIPAL") return { error: "غير مصرح" }
 
   const raw = {
-    name:      formData.get("name"),
-    teacherId: formData.get("teacherId"),
-    level:     formData.get("level") || undefined,
-    location:  formData.get("location") || undefined,
-    capacity:  formData.get("capacity") || undefined,
+    name:        formData.get("name"),
+    teacherId:   formData.get("teacherId"),
+    level:       formData.get("level") || undefined,
+    location:    formData.get("location") || undefined,
+    capacity:    formData.get("capacity") || undefined,
+    sponsorship: formData.get("sponsorship") || undefined,
   }
 
   const parsed = classSchema.safeParse(raw)
@@ -54,11 +56,12 @@ export async function updateClass(
   if (session?.user?.role !== "PRINCIPAL") return { error: "غير مصرح" }
 
   const raw = {
-    name:      formData.get("name"),
-    teacherId: formData.get("teacherId"),
-    level:     formData.get("level") || undefined,
-    location:  formData.get("location") || undefined,
-    capacity:  formData.get("capacity") || undefined,
+    name:        formData.get("name"),
+    teacherId:   formData.get("teacherId"),
+    level:       formData.get("level") || undefined,
+    location:    formData.get("location") || undefined,
+    capacity:    formData.get("capacity") || undefined,
+    sponsorship: formData.get("sponsorship") || undefined,
   }
 
   const parsed = classSchema.safeParse(raw)

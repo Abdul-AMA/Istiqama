@@ -148,6 +148,13 @@ model Student {
   status       StudentStatus @default(ACTIVE)
   notes        String?
 
+  // Roster import fields (from the center's external student database)
+  educationStage   String?
+  familySize       Int?
+  tajweedLevel     String?
+  commitmentLevel  String?
+  residencyStatus  String?
+
   // Snapshot fields (denormalized, updated on each new hifz session)
   currentTotalPagesMemorized Int     @default(0)
   currentJuz                 Int?
@@ -176,6 +183,7 @@ model Class {
   location  String?
   capacity  Int?
   status    ClassStatus @default(ACTIVE)
+  sponsorship String?
   createdAt DateTime    @default(now())
   updatedAt DateTime    @updatedAt
 

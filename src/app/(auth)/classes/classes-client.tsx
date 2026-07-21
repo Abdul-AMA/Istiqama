@@ -31,14 +31,15 @@ import {
 import { toast } from "sonner"
 
 type ClassItem = {
-  id:       string
-  name:     string
-  level:    string | null
-  location: string | null
-  capacity: number | null
-  status:   string
-  teacher:  { id: string; fullName: string; kunya: string | null }
-  _count:   { students: number }
+  id:          string
+  name:        string
+  level:       string | null
+  location:    string | null
+  capacity:    number | null
+  sponsorship: string | null
+  status:      string
+  teacher:     { id: string; fullName: string; kunya: string | null }
+  _count:      { students: number }
 }
 
 type Teacher = { id: string; fullName: string; kunya: string | null }
@@ -118,6 +119,9 @@ export function ClassesClient({
               </div>
               {cls.location && (
                 <p className="text-sm text-muted-foreground">📍 {cls.location}</p>
+              )}
+              {cls.sponsorship && (
+                <p className="text-sm text-muted-foreground">🤝 {cls.sponsorship}</p>
               )}
               <p className="text-sm text-muted-foreground">👤 {cls.teacher.fullName}{cls.teacher.kunya ? ` (${cls.teacher.kunya})` : ""}</p>
               <div className="flex items-center justify-between pt-1">
@@ -205,6 +209,11 @@ function ClassForm({
       <div className="space-y-2">
         <Label htmlFor="location">مكان الحلقة</Label>
         <Input id="location" name="location" defaultValue={cls?.location ?? ""} />
+      </div>
+
+      <div className="space-y-2">
+        <Label htmlFor="sponsorship">الكفالة</Label>
+        <Input id="sponsorship" name="sponsorship" defaultValue={cls?.sponsorship ?? ""} />
       </div>
 
       {state.error && <p className="text-sm text-destructive">{state.error}</p>}
