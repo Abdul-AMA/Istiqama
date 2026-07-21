@@ -304,7 +304,7 @@ export function generateOfflineFormHtml(opts: OfflineFormOptions): string {
 
   <footer class="submit-bar">
     <button type="button" id="continue-btn">📋 متابعة — عرض تقرير اليوم</button>
-    <p class="submit-hint">بعد الضغط على إرسال، افتح تيليجرام واضغط على زر الإرسال لإكمال العملية</p>
+    <p class="submit-hint">بعد الضغط، سيتم نسخ البيانات وفتح تيليجرام — الصق البيانات في محادثة البوت واضغط إرسال</p>
     <button type="button" id="submit-btn">إرسال البيانات عبر تيليجرام</button>
   </footer>
 
@@ -709,20 +709,31 @@ export function generateOfflineFormHtml(opts: OfflineFormOptions): string {
     document.getElementById("report-overlay").classList.add("hidden");
   });
 
-  document.getElementById("copy-report-btn").addEventListener("click", function () {
-    var ta = document.getElementById("report-textarea");
+  // ── Clipboard helper (shared by report copy + Telegram submit) ─────────
+  function copyText(text) {
+    var ta = document.createElement("textarea");
+    ta.value = text;
+    ta.style.position = "fixed";
+    ta.style.opacity = "0";
+    document.body.appendChild(ta);
     ta.focus();
     ta.select();
     var copied = false;
     try {
       if (navigator.clipboard && navigator.clipboard.writeText) {
-        navigator.clipboard.writeText(ta.value);
+        navigator.clipboard.writeText(text);
         copied = true;
       }
     } catch (e) { /* fall through to execCommand */ }
     if (!copied) {
-      try { copied = document.execCommand("copy"); } catch (e) { /* manual copy remains available — text stays selected */ }
+      try { copied = document.execCommand("copy"); } catch (e) { /* copy failed — nothing more we can do */ }
     }
+    document.body.removeChild(ta);
+    return copied;
+  }
+
+  document.getElementById("copy-report-btn").addEventListener("click", function () {
+    var copied = copyText(document.getElementById("report-textarea").value);
     var btn = document.getElementById("copy-report-btn");
     var original = btn.textContent;
     btn.textContent = copied ? "✓ تم النسخ" : "انسخ يدوياً (محدَّد)";
@@ -735,14 +746,15 @@ export function generateOfflineFormHtml(opts: OfflineFormOptions): string {
   });
 
   // ── إرسال عبر تيليجرام ──────────────────────────────────────────────
-  // tg:// is a native URI scheme — the OS hands it straight to the
-  // installed Telegram app with no network request involved, so it works
-  // fully offline. https://t.me/... is a normal HTTPS navigation: an
-  // offline mobile browser tries (and fails) to fetch it before the OS
-  // ever gets a chance to hand off to the app. We try tg:// first and
-  // only fall back to the https link (e.g. desktop browsers with no
-  // scheme handler registered) if the page never lost focus, i.e. nothing
-  // intercepted the navigation.
+  // Telegram's tg:// native scheme opens the app directly offline (no
+  // network request, unlike a plain https://t.me navigation) — but unlike
+  // the https://t.me/<bot>?text=... link, tg:// has no supported way to
+  // pre-fill the message box. So instead: copy the payload to the
+  // clipboard, then open tg://resolve?domain=<bot> to land straight on the
+  // bot's chat, and tell the teacher to paste. Falls back to the https
+  // link (which DOES pre-fill text, since it only works online anyway) if
+  // nothing intercepted the tg:// navigation — e.g. desktop, or Telegram
+  // not installed.
   document.getElementById("submit-btn").addEventListener("click", function () {
     if (!validateAll()) {
       document.getElementById("error-summary").scrollIntoView({ behavior: "smooth" });
@@ -753,9 +765,15 @@ export function generateOfflineFormHtml(opts: OfflineFormOptions): string {
       return;
     }
     var payload = buildPayload();
-    var encoded = encodeURIComponent(payload);
-    var appUrl = "tg://resolve?domain=" + BOT_USERNAME + "&text=" + encoded;
-    var webUrl = "https://t.me/" + BOT_USERNAME + "?text=" + encoded;
+    var copied = copyText(payload);
+    var appUrl = "tg://resolve?domain=" + BOT_USERNAME;
+    var webUrl = "https://t.me/" + BOT_USERNAME + "?text=" + encodeURIComponent(payload);
+
+    alert(
+      copied
+        ? "تم نسخ بيانات الحصة — الصقها داخل محادثة البوت ثم اضغط إرسال"
+        : "تعذّر النسخ التلقائي — انسخ البيانات يدوياً من شاشة التقرير ثم الصقها داخل محادثة البوت"
+    );
 
     var fallbackTimer = setTimeout(function () {
       window.location.href = webUrl;

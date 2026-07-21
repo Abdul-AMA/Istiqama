@@ -48,19 +48,23 @@ The only client-side offline piece that remains is: the static HTML file itself 
 └───────────────────────────┬───────────────────────────────────┘
                             ↓
 ┌─────────────────────────────────────────────────────────────┐
-│ 4. Teacher taps "إرسال" (submit). JS constructs the payload   │
-│    text and builds a Telegram deep link using the tg:// native │
-│    URI scheme (tg://resolve?domain=IstiqamaBot&text=ISTQ%7C...) │
-│    — a native scheme, not an HTTPS URL, so the OS hands off to │
-│    the installed Telegram app directly with no network request,│
-│    working fully offline. Falls back to the https://t.me/...   │
-│    web link only if nothing intercepted the navigation (e.g.   │
-│    desktop browser, Telegram not installed).                   │
+│ 4. Teacher taps "إرسال" (submit). JS copies the payload text  │
+│    to the clipboard, then opens tg://resolve?domain=IstiqamaBot│
+│    — a native URI scheme, not an HTTPS URL, so the OS hands off│
+│    to the installed Telegram app directly on the bot's chat,   │
+│    with no network request involved (working fully offline).   │
+│    tg:// has no supported way to pre-fill the message box (only│
+│    the online-only https://t.me/<bot>?text=... link can do     │
+│    that), hence the clipboard copy — an alert tells the teacher│
+│    to paste. Falls back to that https://t.me link (which DOES  │
+│    pre-fill text) only if nothing intercepted the tg://         │
+│    navigation, e.g. desktop browser, Telegram not installed.    │
 └───────────────────────────┬───────────────────────────────────┘
                             ↓
 ┌─────────────────────────────────────────────────────────────┐
-│ 5. Teacher taps SEND inside Telegram (manual, unavoidable —   │
-│    no app can silently send on the user's behalf)             │
+│ 5. Teacher pastes the payload and taps SEND inside Telegram    │
+│    (manual, unavoidable — no app can silently send on the      │
+│    user's behalf)                                               │
 │    If offline: Telegram queues it in its own outbox.          │
 │    If online: sends immediately.                               │
 └───────────────────────────┬───────────────────────────────────┘
