@@ -1,6 +1,7 @@
 import type { Metadata } from "next"
 import { Cairo } from "next/font/google"
 import { Toaster } from "@/components/ui/sonner"
+import { RouteLoadingProvider } from "@/components/route-loading"
 import { cn } from "@/lib/utils"
 import "./globals.css"
 
@@ -20,8 +21,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="ar" dir="rtl" className={cn("font-sans", cairo.variable)}>
       <body className="min-h-screen bg-background antialiased">
-        {children}
-        <Toaster richColors position="top-center" />
+        <RouteLoadingProvider>
+          {children}
+          <Toaster richColors position="top-center" />
+        </RouteLoadingProvider>
       </body>
     </html>
   )

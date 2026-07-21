@@ -25,6 +25,7 @@ import {
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Sheet, SheetContent } from "@/components/ui/sheet"
+import { useRouteLoading } from "@/components/route-loading"
 import { cn } from "@/lib/utils"
 
 type NavItem = {
@@ -70,6 +71,7 @@ type Props = {
 }
 
 function NavLinks({ items, pathname, onClose }: { items: NavItem[]; pathname: string; onClose?: () => void }) {
+  const { start } = useRouteLoading()
   return (
     <nav className="flex flex-col gap-1">
       {items.map((item) => {
@@ -78,7 +80,10 @@ function NavLinks({ items, pathname, onClose }: { items: NavItem[]; pathname: st
           <Link
             key={item.href}
             href={item.href}
-            onClick={onClose}
+            onClick={() => {
+              if (pathname !== item.href) start()
+              onClose?.()
+            }}
             className={cn(
               "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors",
               active

@@ -142,7 +142,8 @@ export function generateOfflineFormHtml(opts: OfflineFormOptions): string {
 <title>نموذج الحصة غير المتصل — ${escapeHtml(halaqaName)}</title>
 <style>
   :root { color-scheme: light; }
-  * { box-sizing: border-box; }
+  * { box-sizing: border-box; min-width: 0; }
+  html, body { max-width: 100%; overflow-x: hidden; }
   body {
     margin: 0;
     font-family: "Segoe UI", Tahoma, Arial, sans-serif;
@@ -733,7 +734,15 @@ export function generateOfflineFormHtml(opts: OfflineFormOptions): string {
     window.open("https://wa.me/?text=" + encodeURIComponent(text), "_blank");
   });
 
-  // ── إرسال عبر تيليجرام (unchanged mechanism, new payload shape) ────────
+  // ── إرسال عبر تيليجرام ──────────────────────────────────────────────
+  // tg:// is a native URI scheme — the OS hands it straight to the
+  // installed Telegram app with no network request involved, so it works
+  // fully offline. https://t.me/... is a normal HTTPS navigation: an
+  // offline mobile browser tries (and fails) to fetch it before the OS
+  // ever gets a chance to hand off to the app. We try tg:// first and
+  // only fall back to the https link (e.g. desktop browsers with no
+  // scheme handler registered) if the page never lost focus, i.e. nothing
+  // intercepted the navigation.
   document.getElementById("submit-btn").addEventListener("click", function () {
     if (!validateAll()) {
       document.getElementById("error-summary").scrollIntoView({ behavior: "smooth" });
@@ -744,8 +753,19 @@ export function generateOfflineFormHtml(opts: OfflineFormOptions): string {
       return;
     }
     var payload = buildPayload();
-    var url = "https://t.me/" + BOT_USERNAME + "?text=" + encodeURIComponent(payload);
-    window.location.href = url;
+    var encoded = encodeURIComponent(payload);
+    var appUrl = "tg://resolve?domain=" + BOT_USERNAME + "&text=" + encoded;
+    var webUrl = "https://t.me/" + BOT_USERNAME + "?text=" + encoded;
+
+    var fallbackTimer = setTimeout(function () {
+      window.location.href = webUrl;
+    }, 1500);
+    window.addEventListener("blur", function onBlur() {
+      clearTimeout(fallbackTimer);
+      window.removeEventListener("blur", onBlur);
+    });
+
+    window.location.href = appUrl;
   });
 })();
 </script>

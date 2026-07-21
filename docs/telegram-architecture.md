@@ -49,9 +49,13 @@ The only client-side offline piece that remains is: the static HTML file itself 
                             ↓
 ┌─────────────────────────────────────────────────────────────┐
 │ 4. Teacher taps "إرسال" (submit). JS constructs the payload   │
-│    text and builds a Telegram deep link                      │
-│    (https://t.me/IstiqamaBot?text=ISTQ%7C...)                 │
-│    and opens it — Telegram app opens with message pre-filled  │
+│    text and builds a Telegram deep link using the tg:// native │
+│    URI scheme (tg://resolve?domain=IstiqamaBot&text=ISTQ%7C...) │
+│    — a native scheme, not an HTTPS URL, so the OS hands off to │
+│    the installed Telegram app directly with no network request,│
+│    working fully offline. Falls back to the https://t.me/...   │
+│    web link only if nothing intercepted the navigation (e.g.   │
+│    desktop browser, Telegram not installed).                   │
 └───────────────────────────┬───────────────────────────────────┘
                             ↓
 ┌─────────────────────────────────────────────────────────────┐

@@ -6,6 +6,6 @@ export default auth
 
 export const config = {
   matcher: [
-    "/((?!api/auth|api/telegram/webhook|_next/static|_next/image|favicon\\.ico|icon\\.svg|manifest\\.webmanifest).*)",
+    "/((?!api/auth|api/telegram/webhook|_next/static|_next/image|favicon\\.ico|icon\\.png|apple-icon\\.png|icons/|manifest\\.webmanifest).*)",
   ],
 }
