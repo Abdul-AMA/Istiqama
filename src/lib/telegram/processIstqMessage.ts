@@ -86,9 +86,15 @@ export async function processIstqMessage(rawText: string): Promise<ProcessResult
       continue
     }
 
+    const isPresent = row.attendance === "PRESENT" || row.attendance === "LATE"
+    const didNotRecite = isPresent && row.recitations.length === 0
+
     const entry: StudentEntry = {
       studentId: row.studentId,
       attendance: row.attendance,
+      // Mirrors the online daily-session page: a present student with no
+      // recitation entries means "لم يسمع اليوم" was ticked there.
+      attendanceNotes: didNotRecite ? "لم يسمع اليوم" : undefined,
       generalNotes: row.note || undefined,
       recitations: row.recitations,
     }

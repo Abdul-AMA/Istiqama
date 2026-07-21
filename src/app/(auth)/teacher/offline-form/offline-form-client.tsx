@@ -19,15 +19,19 @@ type ClassOption = {
   roster: { id: string; fullName: string }[]
 }
 
+type SurahOption = { number: number; nameAr: string; ayahCount: number; startPage: number }
+
 export function OfflineFormClient({
   teacherId,
   teacherName,
   botUsername,
+  surahs,
   classes,
 }: {
   teacherId: string
   teacherName: string
   botUsername: string
+  surahs: SurahOption[]
   classes: ClassOption[]
 }) {
   const [classId, setClassId] = useState(classes[0]?.id ?? "")
@@ -41,6 +45,7 @@ export function OfflineFormClient({
       halaqaId: selected.id,
       halaqaName: selected.name,
       roster: selected.roster,
+      surahs,
       botUsername,
       generatedAt: new Date(),
     })

@@ -35,9 +35,12 @@ One phase at a time. Finish and confirm each phase works before starting the nex
 Phases are in quran-center-requirements.md section 11.
 
 ## Telegram offline submission
-- Telegram payload format: ISTQ|teacher_id|halaqa_id|date|student_blocks
-  (see docs/telegram-architecture.md for full spec — keep that file in
-  sync with the parser implementation)
+- Telegram payload format: ISTQ|teacher_id|halaqa_id|date|student_blocks,
+  where each recitation entry within a student_block is
+  type:surah:from_ayah:to_ayah:completed:pages:rating:mistakes — surah/ayah
+  based, matching the online daily-session page's data model exactly (not
+  page-only). See docs/telegram-architecture.md for full spec — keep that
+  file in sync with the parser implementation.
 - Telegram and web session-save paths MUST call the same shared
   server-side validation/save function (`saveDailySessionCore` in
   `lib/daily-session/save.ts`). Never duplicate this logic.
@@ -52,8 +55,13 @@ Phases are in quran-center-requirements.md section 11.
   are fully static (no fetch calls to our server at all) and must work
   with zero network connection once downloaded/opened.
 - Generated HTML embeds: magic-prefix-aware payload builder JS,
-  teacher_id, halaqa_id, full current roster (id + name), and a visible
-  "آخر تحديث" timestamp.
+  teacher_id, halaqa_id, full current roster (id + name), the full 114-surah
+  list, and a visible "آخر تحديث" timestamp.
+- واجب الغد (tomorrow's homework) in the generated HTML is report-only —
+  never sent in the Telegram payload, never saved to the DB. It only feeds
+  the on-page WhatsApp-shareable daily report (متابعة button), which mirrors
+  the online group report (`getGroupReportData` in
+  `lib/actions/messages.actions.ts`).
 - Regenerate-on-demand: there is no auto-push of updated HTML to
   teachers' phones. A teacher must redownload after any roster change to
   pick up new/removed students.

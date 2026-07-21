@@ -14,10 +14,9 @@ const ATTENDANCE_CODE_MAP: Record<string, "PRESENT" | "ABSENT" | "LATE" | "EXCUS
   E: "EXCUSED",
 }
 
-const HIFZ_TYPE_MAP: Record<string, "NEW" | "RECENT_REVISION" | "OLD_REVISION"> = {
+const HIFZ_TYPE_MAP: Record<string, "NEW" | "RECENT_REVISION"> = {
   N: "NEW",
   R: "RECENT_REVISION",
-  O: "OLD_REVISION",
 }
 
 export interface ParsedStudentRowOk {
@@ -40,10 +39,13 @@ export type ParsedPayload =
   | { ok: true; teacherId: string; halaqaId: string; date: string; rows: ParsedStudentRow[] }
   | { ok: false; reason: string }
 
-// hifz_entries is zero or more "_"-joined entries of type:from_page:to_page:rating:mistakes.
-// Because each entry's own fields are colon-delimited too, the caller must
-// hand us the raw slice already isolated from student_id/attendance_code/note
-// (see parseStudentBlock below) — this function only handles the "_" layer.
+// hifz_entries is zero or more "_"-joined entries, each formatted:
+// type:surah:from_ayah:to_ayah:completed:pages:rating:mistakes
+// (surah/ayah-based, matching the online daily-session page's data model —
+// see docs/telegram-architecture.md §6.3). Because each entry's own fields
+// are colon-delimited too, the caller must hand us the raw slice already
+// isolated from student_id/attendance_code/note (see parseStudentBlock
+// below) — this function only handles the "_" layer.
 function parseHifzEntries(hifzEntriesStr: string): { entries: RecitationInput[]; error: string | null } {
   // A payload with no entries collapses to "" (or a lone separator colon in
   // some client-generated edge cases) — treat both as "zero entries".
@@ -53,10 +55,10 @@ function parseHifzEntries(hifzEntriesStr: string): { entries: RecitationInput[];
   const entries: RecitationInput[] = []
   for (const rawEntry of cleaned.split("_")) {
     const parts = rawEntry.split(":")
-    if (parts.length !== 5) {
+    if (parts.length !== 8) {
       return { entries: [], error: `صيغة تسميع غير صحيحة: ${rawEntry}` }
     }
-    const [typeCode, fromPageStr, toPageStr, ratingStr, mistakesStr] = parts
+    const [typeCode, surahStr, fromAyahStr, toAyahStr, completedStr, pagesStr, ratingStr, mistakesStr] = parts
     const type = HIFZ_TYPE_MAP[typeCode]
     if (!type) {
       return { entries: [], error: `نوع تسميع غير معروف: ${typeCode}` }
@@ -64,8 +66,11 @@ function parseHifzEntries(hifzEntriesStr: string): { entries: RecitationInput[];
 
     const result = recitationSchema.safeParse({
       type,
-      fromPage: fromPageStr,
-      toPage: toPageStr,
+      surahNumber: surahStr,
+      fromAyah: fromAyahStr,
+      toAyah: toAyahStr,
+      surahCompleted: completedStr === "1",
+      pagesCount: pagesStr === "" ? undefined : pagesStr,
       rating: ratingStr,
       mistakeCount: mistakesStr,
     })

@@ -1,33 +1,37 @@
 import { auth } from "@/auth"
 import { redirect } from "next/navigation"
 import { prisma } from "@/lib/prisma"
+import { getAllSurahs } from "@/lib/actions/daily-session.actions"
 import { AdminOfflineFormClient } from "./admin-offline-form-client"
 
 export default async function AdminOfflineFormPage() {
   const session = await auth()
   if (session?.user?.role !== "PRINCIPAL") redirect("/dashboard")
 
-  const teachers = await prisma.user.findMany({
-    where: { role: "TEACHER", isActive: true },
-    select: {
-      id: true,
-      fullName: true,
-      classes: {
-        where: { status: "ACTIVE" },
-        select: {
-          id: true,
-          name: true,
-          students: {
-            where: { status: { in: ["ACTIVE", "GUEST"] } },
-            select: { id: true, fullName: true },
-            orderBy: { fullName: "asc" },
+  const [teachers, surahs] = await Promise.all([
+    prisma.user.findMany({
+      where: { role: "TEACHER", isActive: true },
+      select: {
+        id: true,
+        fullName: true,
+        classes: {
+          where: { status: "ACTIVE" },
+          select: {
+            id: true,
+            name: true,
+            students: {
+              where: { status: { in: ["ACTIVE", "GUEST"] } },
+              select: { id: true, fullName: true },
+              orderBy: { fullName: "asc" },
+            },
           },
+          orderBy: { name: "asc" },
         },
-        orderBy: { name: "asc" },
       },
-    },
-    orderBy: { fullName: "asc" },
-  })
+      orderBy: { fullName: "asc" },
+    }),
+    getAllSurahs(),
+  ])
 
   const botUsername = process.env.TELEGRAM_BOT_USERNAME ?? ""
 
@@ -48,6 +52,7 @@ export default async function AdminOfflineFormPage() {
 
       <AdminOfflineFormClient
         botUsername={botUsername}
+        surahs={surahs}
         teachers={teachers.map((t) => ({
           id: t.id,
           fullName: t.fullName,

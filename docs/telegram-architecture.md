@@ -129,24 +129,57 @@ student_id:attendance_code:hifz_entries:note
 
 - `attendance_code` — single letter: `P` (حاضر), `A` (غائب), `L` (متأخر), `E` (معذور)
 - `hifz_entries` — zero or more recitation entries separated by `_`, each formatted:
-  `type:from_page:to_page:rating:mistakes`
-  where `type` is `N` (new/سبق), `R` (recent revision/سبقي), `O` (old revision/منزل)
-  Empty if the student is absent or has `لم_يُسمَع` ticked (see attendance_code `A`/`E` handling below).
+  `type:surah:from_ayah:to_ayah:completed:pages:rating:mistakes`
+  where:
+  - `type` is `N` (حفظ جديد → `NEW`) or `R` (مراجعة → `RECENT_REVISION`). This is
+    surah/ayah-based — matching the online daily-session page's data model
+    exactly (`src/app/(auth)/daily/daily-session-client.tsx` /
+    `src/lib/daily-session/save.ts`) — not the page-based format used before
+    Phase 12b. There is no `O` (old revision) type; the online page never
+    produces it either.
+  - `surah` — Mushaf surah number, 1–114.
+  - `from_ayah` / `to_ayah` — ayah range within that surah.
+  - `completed` — `1` if `تم الحفظ كاملاً` was ticked (forces the full
+    1..ayahCount range server-side), else `0`.
+  - `pages` — manually-entered page count (0.5 increments), or empty string
+    if not given.
+  - `rating` — `1`–`4` (see CLAUDE.md non-negotiables).
+  - `mistakes` — non-negative integer, `0` if none.
+
+  A present student with **zero** entries means `لم يُسمَع اليوم` was ticked
+  (absent/excused students never have entries).
 - `note` — free text, capped at a fixed character limit enforced client-side (limit to be set during implementation — recommend 80–100 characters). Omit entirely (empty string between delimiters) if no note.
+
+Tomorrow's homework (`واجب الغد`) is captured in the HTML form for the on-page
+report only (see §9) — it is **never** part of the payload and never reaches
+the parser or the database.
 
 ### 6.4 Example payload
 
-A class of 3 students, one absent, one with two recitation entries:
+A class of 3 students, one absent, one with a new entry and a completed revision:
 
 ```
-ISTQ|7|3|2026-06-24|101:P:N:12:15:4:1:;102:A:::;103:P:N:8:10:3:0_R:1:5:4:0:كرر صفحة 9
+ISTQ|7|3|2026-06-24|101:P:N:2:1:5:0::4:1_R:1:1:7:1::4:0:كرر;102:A:::;103:P::
 ```
 
-Breaking down student 103: present, one new entry (pages 8–10, rating 3, 0 mistakes) and one recent-revision entry (pages 1–5, rating 4, 0 mistakes), with a note "كرر صفحة 9".
+Breaking down student 101: present, one new entry (البقرة 1–5, not completed,
+no manual page count, rating 4, 1 mistake) and one revision entry (surah 1 /
+الفاتحة, completed, rating 4, 0 mistakes), note "كرر". Student 102 is absent
+with no entries and no note. Student 103 is present with zero entries and no
+note (block ends `:P::` — empty entries field, empty note field) — i.e.
+`لم يُسمَع اليوم`.
 
 ### 6.5 Size estimate
 
-A single student block with one recitation entry and no note runs roughly 20–25 characters. For a 20-student halaqa with every student fully filled, total payload length is approximately 500–700 characters — well under Telegram's 4096-character limit. Even a class of 40 students with multiple recitation entries each is unlikely to approach the limit unless notes are heavily used, which the character cap (Section 6.3) prevents.
+A single recitation entry now runs roughly 25–35 characters (up from ~20–25
+under the old page-only format, since surah/ayah/completed/pages add a few
+fields). For a 20-student halaqa with every present student filled in with
+one or two entries each, total payload length is still comfortably under
+1000 characters — well under Telegram's 4096-character limit. A class of
+40 students with several entries per student and heavy note usage is the
+realistic upper bound and is still unlikely to approach the limit, since
+the note cap (Section 6.3) bounds free text and homework never enters the
+payload at all.
 
 No message-splitting/chunking logic is needed at current or realistic future class sizes. Revisit only if production logs ever show payloads approaching ~3000 characters.
 
@@ -165,8 +198,11 @@ No message-splitting/chunking logic is needed at current or realistic future cla
 ## 9. HTML generation and distribution
 
 - Each teacher's personalized HTML page is generated **on demand** from their profile page in the web app, whenever their roster changes (student added/removed) or whenever they request a fresh copy.
-- The generated file embeds: magic prefix capability (the JS that builds payloads with the `ISTQ|` prefix), teacher_id, halaqa_id, the full current student roster (id + name), and a visible "آخر تحديث: [timestamp]" stamp at the top of the page so a teacher can self-check staleness.
+- The generated file embeds: magic prefix capability (the JS that builds payloads with the `ISTQ|` prefix), teacher_id, halaqa_id, the full current student roster (id + name), the full 114-surah list (number/name/ayah count — needed offline for the surah pickers), and a visible "آخر تحديث: [timestamp]" stamp at the top of the page so a teacher can self-check staleness.
 - The admin variant (`/admin/...`) generates the same kind of page but with a halaqa/teacher select dropdown at the top; selecting an option swaps the embedded teacher_id/halaqa_id and visible roster in-page (still a single static file, the dropdown just switches which baked-in dataset is active — no network call).
+- Per-student fields mirror the online daily-session page exactly: attendance, `لم يُسمَع اليوم` toggle, unlimited add/remove حفظ جديد and مراجعة records (surah picker, ayah range, `تم الحفظ كاملاً`, page count, rating, mistakes), and one general note.
+- **واجب الغد (tomorrow's homework)** — one optional surah/ayah entry per student, offline-only. It is never included in the Telegram payload and never persisted to the database; it exists solely to appear in the on-page report described below.
+- **Two-step submit.** After filling the form, the teacher can press **متابعة** to open an on-page report (mirroring the online group-report format in `getGroupReportData`, `src/lib/actions/messages.actions.ts`) with a copy button and a "مشاركة عبر واتساب" (`wa.me`) button for posting to the class WhatsApp group. Closing the report returns to the exact same filled-in form. The **إرسال البيانات عبر تيليجرام** button is independent of this step — a teacher can submit without ever opening the report, or open the report first and submit afterward.
 - If a teacher submits using a stale HTML file (a student was added to the halaqa after their copy was generated), the missing student simply has no record for that day — this is not an error condition (see Section 10).
 - Distribution mechanics (file download vs. installable static-asset PWA shell with no sync logic) are an implementation detail for Phase 9-replacement work — either is acceptable; an installable shell is recommended for easier "open instantly, refresh on next online launch" behavior, but is not required for correctness.
 

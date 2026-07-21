@@ -1,25 +1,29 @@
 import { auth } from "@/auth"
 import { redirect } from "next/navigation"
 import { prisma } from "@/lib/prisma"
+import { getAllSurahs } from "@/lib/actions/daily-session.actions"
 import { OfflineFormClient } from "./offline-form-client"
 
 export default async function TeacherOfflineFormPage() {
   const session = await auth()
   if (!session?.user) redirect("/login")
 
-  const classes = await prisma.class.findMany({
-    where: { teacherId: session.user.id!, status: "ACTIVE" },
-    select: {
-      id: true,
-      name: true,
-      students: {
-        where: { status: { in: ["ACTIVE", "GUEST"] } },
-        select: { id: true, fullName: true },
-        orderBy: { fullName: "asc" },
+  const [classes, surahs] = await Promise.all([
+    prisma.class.findMany({
+      where: { teacherId: session.user.id!, status: "ACTIVE" },
+      select: {
+        id: true,
+        name: true,
+        students: {
+          where: { status: { in: ["ACTIVE", "GUEST"] } },
+          select: { id: true, fullName: true },
+          orderBy: { fullName: "asc" },
+        },
       },
-    },
-    orderBy: { name: "asc" },
-  })
+      orderBy: { name: "asc" },
+    }),
+    getAllSurahs(),
+  ])
 
   const botUsername = process.env.TELEGRAM_BOT_USERNAME ?? ""
 
@@ -42,6 +46,7 @@ export default async function TeacherOfflineFormPage() {
         teacherId={session.user.id!}
         teacherName={session.user.name!}
         botUsername={botUsername}
+        surahs={surahs}
         classes={classes.map((c) => ({
           id: c.id,
           name: c.name,

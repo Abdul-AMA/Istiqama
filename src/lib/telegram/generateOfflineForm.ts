@@ -3,11 +3,25 @@
 // no connectivity. No prisma/server-only imports here — both the teacher
 // and admin routes call this from a client component so the download can
 // be built (and rebuilt on dropdown change) without a server round-trip.
-// See docs/telegram-architecture.md §9 for the design this implements.
+//
+// The per-student data model mirrors the online daily-session page exactly
+// (src/app/(auth)/daily/daily-session-client.tsx): surah/ayah-based حفظ
+// جديد / مراجعة entries (multiple each), so both paths save identically
+// through saveDailySessionCore. واجب الغد (tomorrow's homework) is an
+// offline-only, report-only addition — it is never sent in the Telegram
+// payload and never saved to the DB.
+//
+// See docs/telegram-architecture.md §6 and §9 for the design this implements.
 
 export interface OfflineFormRosterStudent {
   id: string
   fullName: string
+}
+
+export interface OfflineFormSurah {
+  number: number
+  nameAr: string
+  ayahCount: number
 }
 
 export interface OfflineFormOptions {
@@ -16,11 +30,10 @@ export interface OfflineFormOptions {
   halaqaName: string
   teacherName: string
   roster: OfflineFormRosterStudent[]
+  surahs: OfflineFormSurah[]
   botUsername: string
   generatedAt: Date
 }
-
-const MAX_MUSHAF_PAGE = 604
 
 function escapeHtml(s: string): string {
   return s
@@ -35,6 +48,10 @@ function escapeJsString(s: string): string {
   // Used only inside a JS string literal embedded in the page — guards
   // against a roster name containing a quote or a literal </script>.
   return JSON.stringify(s).slice(1, -1).replace(/</g, "\\u003C")
+}
+
+function embedJson(value: unknown): string {
+  return JSON.stringify(value).replace(/</g, "\\u003C")
 }
 
 function formatTimestamp(d: Date): string {
@@ -54,12 +71,6 @@ const ATTENDANCE_OPTIONS = [
   { code: "E", label: "معذور" },
 ]
 
-const HIFZ_TYPES = [
-  { code: "N", label: "سبق (جديد)" },
-  { code: "R", label: "سبقي (مراجعة قريبة)" },
-  { code: "O", label: "منزل (مراجعة بعيدة)" },
-]
-
 const RATING_OPTIONS = [
   { value: 4, label: "ممتاز" },
   { value: 3, label: "جيد جداً" },
@@ -67,31 +78,13 @@ const RATING_OPTIONS = [
   { value: 1, label: "يحتاج إعادة" },
 ]
 
+const RATING_BUTTONS_HTML = RATING_OPTIONS.map(
+  (r) => `<button type="button" class="rating-btn" data-rating="${r.value}">${r.label}</button>`
+).join("")
+
 function studentCardHtml(s: OfflineFormRosterStudent): string {
   const attButtons = ATTENDANCE_OPTIONS.map(
     (o) => `<button type="button" class="att-btn" data-att="${o.code}">${o.label}</button>`
-  ).join("")
-
-  const hifzTypeBlocks = HIFZ_TYPES.map(
-    (t) => `
-      <div class="hifz-type" data-type="${t.code}">
-        <label class="type-toggle">
-          <input type="checkbox" class="type-active-cb" />
-          <span>${t.label}</span>
-        </label>
-        <div class="type-fields hidden">
-          <div class="field-row">
-            <label>من صفحة<input type="number" class="f-from" min="1" max="${MAX_MUSHAF_PAGE}" inputmode="numeric" /></label>
-            <label>إلى صفحة<input type="number" class="f-to" min="1" max="${MAX_MUSHAF_PAGE}" inputmode="numeric" /></label>
-          </div>
-          <div class="rating-row">
-            ${RATING_OPTIONS.map((r) => `<button type="button" class="rating-btn" data-rating="${r.value}">${r.label}</button>`).join("")}
-          </div>
-          <label class="mistakes-row">عدد الأخطاء
-            <input type="number" class="f-mistakes" min="0" inputmode="numeric" value="0" />
-          </label>
-        </div>
-      </div>`
   ).join("")
 
   return `
@@ -103,11 +96,36 @@ function studentCardHtml(s: OfflineFormRosterStudent): string {
         <input type="checkbox" class="dnr-cb" />
         <span>لم يُسمَع اليوم</span>
       </label>
-      <div class="hifz-types">${hifzTypeBlocks}</div>
-      <label class="note-label">ملاحظة (اختياري)
+
+      <div class="today-sections">
+        <div class="section-block hifz-section" data-rec-type="NEW">
+          <p class="section-title">حفظ جديد</p>
+          <div class="entries-list"></div>
+          <button type="button" class="add-entry-btn">+ إضافة سورة</button>
+        </div>
+        <div class="section-block muraja-section" data-rec-type="RECENT_REVISION">
+          <p class="section-title">مراجعة</p>
+          <div class="entries-list"></div>
+          <button type="button" class="add-entry-btn">+ إضافة سورة</button>
+        </div>
+      </div>
+
+      <label class="note-label">ملاحظات عامة (اختياري)
         <textarea class="note-field" maxlength="100" rows="2" placeholder="حتى 100 حرف — بدون : ; _ |"></textarea>
       </label>
       <div class="note-counter">0/100</div>
+
+      <div class="homework-block">
+        <p class="section-title homework-title">📝 واجب الغد (اختياري — لعرضه في التقرير فقط، لا يُرسَل مع البيانات)</p>
+        <select class="hw-surah surah-select"></select>
+        <div class="hw-fields hidden">
+          <label class="completed-row"><input type="checkbox" class="hw-completed" /><span>السورة كاملة</span></label>
+          <div class="ayah-row">
+            <label>من آية<input type="number" class="hw-from-ayah" min="1" value="1" /></label>
+            <label>إلى آية<input type="number" class="hw-to-ayah" min="1" /></label>
+          </div>
+        </div>
+      </div>
     </div>
     <div class="att-hint">اختر حالة الحضور أولاً</div>
     <div class="card-error"></div>
@@ -115,7 +133,7 @@ function studentCardHtml(s: OfflineFormRosterStudent): string {
 }
 
 export function generateOfflineFormHtml(opts: OfflineFormOptions): string {
-  const { teacherId, halaqaId, halaqaName, teacherName, roster, botUsername, generatedAt } = opts
+  const { teacherId, halaqaId, halaqaName, teacherName, roster, surahs, botUsername, generatedAt } = opts
 
   const cardsHtml = roster.map(studentCardHtml).join("\n")
   const generatedAtLabel = formatTimestamp(generatedAt)
@@ -135,7 +153,7 @@ export function generateOfflineFormHtml(opts: OfflineFormOptions): string {
     background: #f4f6f5;
     color: #1f2937;
     padding: 12px;
-    padding-bottom: 100px;
+    padding-bottom: 190px;
   }
   header.page-head {
     background: #16a34a;
@@ -175,12 +193,40 @@ export function generateOfflineFormHtml(opts: OfflineFormOptions): string {
   .att-hint { font-size: 12px; color: #9ca3af; margin-top: 6px; }
   .hifz-area { margin-top: 10px; border-top: 1px dashed #e5e7eb; padding-top: 10px; }
   .dnr-row { display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600; margin-bottom: 10px; }
-  .hifz-type { border: 1px solid #e5e7eb; border-radius: 10px; padding: 8px; margin-bottom: 8px; }
-  .type-toggle { display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600; cursor: pointer; }
-  .type-fields { margin-top: 8px; }
-  .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-  .field-row label { font-size: 12px; color: #6b7280; display: flex; flex-direction: column; gap: 4px; }
-  .field-row input { height: 36px; border-radius: 8px; border: 1px solid #d1d5db; padding: 0 8px; font-size: 14px; text-align: center; }
+
+  .section-block {
+    border: 2px solid #e5e7eb; border-radius: 12px; padding: 10px; margin-bottom: 10px;
+  }
+  .hifz-section { border-color: #86efac; background: #f0fdf4; }
+  .muraja-section { border-color: #93c5fd; background: #eff6ff; }
+  .section-title { font-size: 13px; font-weight: 700; margin: 0 0 8px; }
+  .entries-list:empty::before {
+    content: "لا يوجد — اضغط + لإضافة سورة";
+    display: block; text-align: center; font-size: 12px; color: #9ca3af; padding: 6px 0;
+  }
+  .entry-row {
+    background: #fff; border: 1px solid #e5e7eb; border-radius: 10px;
+    padding: 10px; margin-bottom: 8px;
+  }
+  .entry-top { display: flex; align-items: center; gap: 8px; }
+  .entry-top select { flex: 1; height: 38px; border-radius: 8px; border: 1px solid #d1d5db; padding: 0 8px; font-size: 13px; }
+  .remove-entry-btn {
+    shrink: 0; border: none; background: transparent; color: #9ca3af; font-size: 15px;
+    cursor: pointer; padding: 4px 8px;
+  }
+  .add-entry-btn {
+    display: block; width: 100%; border: 1px dashed #9ca3af; background: transparent;
+    border-radius: 10px; padding: 8px; font-size: 12px; font-weight: 600; cursor: pointer; color: #374151;
+  }
+  .entry-fields { margin-top: 8px; }
+  .completed-row { display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; margin-bottom: 8px; cursor: pointer; }
+  .ayah-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .ayah-row label, .pages-row-label { font-size: 11px; color: #6b7280; display: flex; flex-direction: column; gap: 4px; }
+  .ayah-row input, .pages-row-label input {
+    height: 36px; border-radius: 8px; border: 1px solid #d1d5db; padding: 0 8px; font-size: 14px; text-align: center;
+  }
+  .ayah-row input[readonly], .pages-row-label input[readonly] { background: #f3f4f6; }
+  .pages-row-label { margin-top: 8px; }
   .rating-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; margin-top: 8px; }
   .rating-btn { border: 1px solid #d1d5db; background: #fff; border-radius: 8px; padding: 6px 2px; font-size: 11px; font-weight: 600; cursor: pointer; }
   .rating-btn.selected[data-rating="4"] { background: #16a34a; color: #fff; border-color: #16a34a; }
@@ -189,21 +235,58 @@ export function generateOfflineFormHtml(opts: OfflineFormOptions): string {
   .rating-btn.selected[data-rating="1"] { background: #ef4444; color: #fff; border-color: #ef4444; }
   .mistakes-row { display: flex; align-items: center; justify-content: space-between; font-size: 12px; color: #6b7280; margin-top: 8px; }
   .mistakes-row input { height: 32px; width: 70px; border-radius: 8px; border: 1px solid #d1d5db; text-align: center; }
+
   .note-label { display: block; font-size: 12px; color: #6b7280; margin-top: 4px; }
   .note-field { width: 100%; margin-top: 4px; border-radius: 8px; border: 1px solid #d1d5db; padding: 6px 8px; font-size: 13px; font-family: inherit; resize: none; }
   .note-counter { font-size: 11px; color: #9ca3af; text-align: left; }
+
+  .homework-block { margin-top: 12px; border-top: 1px dashed #e5e7eb; padding-top: 10px; }
+  .homework-title { color: #92400e; }
+  .hw-surah { width: 100%; height: 38px; border-radius: 8px; border: 1px solid #d1d5db; padding: 0 8px; font-size: 13px; }
+  .hw-fields { margin-top: 8px; }
+
   .card-error { display: none; font-size: 12px; color: #b91c1c; margin-top: 6px; font-weight: 600; }
   .hidden { display: none !important; }
+
   footer.submit-bar {
     position: fixed; inset-inline: 0; bottom: 0; background: #fff;
     border-top: 1px solid #e5e7eb; padding: 10px 12px; box-shadow: 0 -2px 8px rgba(0,0,0,.05);
   }
-  footer.submit-bar p { margin: 0 0 8px; font-size: 12px; color: #6b7280; text-align: center; }
+  footer.submit-bar p.submit-hint { margin: 8px 0 8px; font-size: 12px; color: #6b7280; text-align: center; }
+  #continue-btn {
+    width: 100%; height: 44px; border: 1px solid #16a34a; border-radius: 10px;
+    background: #fff; color: #16a34a; font-size: 14px; font-weight: 700; cursor: pointer;
+  }
+  #continue-btn:disabled { border-color: #9ca3af; color: #9ca3af; cursor: not-allowed; }
   #submit-btn {
     width: 100%; height: 48px; border: none; border-radius: 10px;
     background: #16a34a; color: #fff; font-size: 15px; font-weight: 700; cursor: pointer;
   }
   #submit-btn:disabled { background: #9ca3af; cursor: not-allowed; }
+
+  .report-overlay {
+    position: fixed; inset: 0; background: rgba(0,0,0,.5); z-index: 50;
+    display: flex; align-items: flex-end; justify-content: center;
+  }
+  .report-panel {
+    background: #fff; border-radius: 16px 16px 0 0; padding: 16px; width: 100%; max-width: 480px;
+    max-height: 88vh; overflow-y: auto;
+  }
+  .report-panel h2 { margin: 0 0 10px; font-size: 16px; }
+  .report-textarea {
+    width: 100%; border-radius: 10px; border: 1px solid #d1d5db; padding: 10px; font-size: 13px;
+    font-family: inherit; resize: none; white-space: pre-wrap;
+  }
+  .report-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 10px; }
+  .report-actions button {
+    height: 42px; border-radius: 10px; border: 1px solid #d1d5db; background: #f9fafb;
+    font-size: 13px; font-weight: 700; cursor: pointer;
+  }
+  #whatsapp-share-btn { background: #25d366; border-color: #25d366; color: #fff; }
+  .report-back-btn {
+    display: block; width: 100%; margin-top: 10px; height: 42px; border-radius: 10px;
+    border: none; background: transparent; color: #6b7280; font-size: 13px; font-weight: 600; cursor: pointer;
+  }
 </style>
 </head>
 <body>
@@ -225,9 +308,22 @@ export function generateOfflineFormHtml(opts: OfflineFormOptions): string {
   <div id="cards">${cardsHtml}</div>
 
   <footer class="submit-bar">
-    <p>بعد الضغط على إرسال، افتح تيليجرام واضغط على زر الإرسال لإكمال العملية</p>
-    <button type="button" id="submit-btn">إرسال عبر تيليجرام</button>
+    <button type="button" id="continue-btn">📋 متابعة — عرض تقرير اليوم</button>
+    <p class="submit-hint">بعد الضغط على إرسال، افتح تيليجرام واضغط على زر الإرسال لإكمال العملية</p>
+    <button type="button" id="submit-btn">إرسال البيانات عبر تيليجرام</button>
   </footer>
+
+  <div id="report-overlay" class="report-overlay hidden">
+    <div class="report-panel">
+      <h2>تقرير الحصة اليومية</h2>
+      <textarea id="report-textarea" class="report-textarea" rows="14" readonly></textarea>
+      <div class="report-actions">
+        <button type="button" id="copy-report-btn">نسخ التقرير</button>
+        <button type="button" id="whatsapp-share-btn">مشاركة عبر واتساب</button>
+      </div>
+      <button type="button" id="report-back-btn" class="report-back-btn">رجوع للتعديل</button>
+    </div>
+  </div>
 
 <script>
 (function () {
@@ -236,9 +332,17 @@ export function generateOfflineFormHtml(opts: OfflineFormOptions): string {
   var ISTQ_PREFIX = "ISTQ|";
   var TEACHER_ID = "${escapeJsString(teacherId)}";
   var HALAQA_ID = "${escapeJsString(halaqaId)}";
+  var HALAQA_NAME = "${escapeJsString(halaqaName)}";
+  var TEACHER_NAME = "${escapeJsString(teacherName)}";
   var BOT_USERNAME = "${escapeJsString(botUsername)}";
-  var MAX_PAGE = ${MAX_MUSHAF_PAGE};
   var FORBIDDEN_CHARS = /[:;_|]/g;
+  var RATING_OPTIONS_HTML = ${embedJson(RATING_BUTTONS_HTML)};
+  var RATING_AR = ["", "يحتاج إعادة", "جيد", "جيد جداً", "ممتاز"];
+  var ATT_LABEL = { P: "حاضر", L: "متأخر", A: "غائب", E: "معذور" };
+
+  var SURAHS = ${embedJson(surahs)};
+  var SURAH_MAP = {};
+  SURAHS.forEach(function (s) { SURAH_MAP[s.number] = s; });
 
   function todayLocalIso() {
     var d = new Date();
@@ -253,11 +357,105 @@ export function generateOfflineFormHtml(opts: OfflineFormOptions): string {
   dateInput.value = today;
   dateInput.max = today;
 
-  // ── Attendance buttons ──────────────────────────────────────────────
+  // ── Surah <select> population ─────────────────────────────────────────
+  function buildSurahOptionsHtml(placeholder) {
+    var html = "<option value=\\"\\">" + placeholder + "</option>";
+    SURAHS.forEach(function (s) {
+      html += "<option value=\\"" + s.number + "\\">" + s.number + ". " + s.nameAr + "</option>";
+    });
+    return html;
+  }
+
+  // ── Dynamic حفظ/مراجعة entry rows ───────────────────────────────────────
+  function createEntryRow() {
+    var row = document.createElement("div");
+    row.className = "entry-row";
+    row.innerHTML =
+      '<div class="entry-top">' +
+        '<select class="entry-surah surah-select"></select>' +
+        '<button type="button" class="remove-entry-btn" aria-label="حذف">✕</button>' +
+      '</div>' +
+      '<div class="entry-fields hidden">' +
+        '<label class="completed-row"><input type="checkbox" class="entry-completed" /><span>تم الحفظ كاملاً</span></label>' +
+        '<div class="ayah-row">' +
+          '<label>من آية<input type="number" class="entry-from-ayah" min="1" value="1" /></label>' +
+          '<label>إلى آية<input type="number" class="entry-to-ayah" min="1" /></label>' +
+        '</div>' +
+        '<label class="pages-row-label">عدد الصفحات<input type="number" class="entry-pages" min="0.5" step="0.5" /></label>' +
+        '<div class="rating-row">' + RATING_OPTIONS_HTML + '</div>' +
+        '<label class="mistakes-row">عدد الأخطاء<input type="number" class="entry-mistakes" min="0" value="0" /></label>' +
+      '</div>';
+
+    var select = row.querySelector(".entry-surah");
+    select.innerHTML = buildSurahOptionsHtml("اختر سورة");
+    var fieldsEl = row.querySelector(".entry-fields");
+    var fromInp = row.querySelector(".entry-from-ayah");
+    var toInp = row.querySelector(".entry-to-ayah");
+    var completedCb = row.querySelector(".entry-completed");
+
+    select.addEventListener("change", function () {
+      var num = select.value;
+      fieldsEl.classList.toggle("hidden", !num);
+      if (num) {
+        var s = SURAH_MAP[num];
+        fromInp.value = "1";
+        toInp.value = s ? String(s.ayahCount) : "";
+        fromInp.readOnly = false;
+        toInp.readOnly = false;
+        completedCb.checked = false;
+      }
+      validateAll();
+    });
+
+    completedCb.addEventListener("change", function () {
+      var num = select.value;
+      var s = SURAH_MAP[num];
+      if (completedCb.checked && s) {
+        fromInp.value = "1";
+        toInp.value = String(s.ayahCount);
+        fromInp.readOnly = true;
+        toInp.readOnly = true;
+      } else {
+        fromInp.readOnly = false;
+        toInp.readOnly = false;
+      }
+      validateAll();
+    });
+
+    row.querySelectorAll(".rating-btn").forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        row.querySelectorAll(".rating-btn").forEach(function (b) { b.classList.remove("selected"); });
+        btn.classList.add("selected");
+        validateAll();
+      });
+    });
+
+    row.querySelectorAll(".entry-from-ayah, .entry-to-ayah, .entry-pages, .entry-mistakes").forEach(function (inp) {
+      inp.addEventListener("input", validateAll);
+    });
+
+    row.querySelector(".remove-entry-btn").addEventListener("click", function () {
+      row.remove();
+      validateAll();
+    });
+
+    return row;
+  }
+
+  document.querySelectorAll(".add-entry-btn").forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      var section = btn.closest(".section-block");
+      section.querySelector(".entries-list").appendChild(createEntryRow());
+    });
+  });
+
+  // ── Per-card wiring: attendance, لم يُسمَع, homework, general note ─────
   document.querySelectorAll(".card").forEach(function (card) {
     var attRow = card.querySelector(".att-row");
     var hifzArea = card.querySelector(".hifz-area");
     var attHint = card.querySelector(".att-hint");
+    var todaySections = card.querySelector(".today-sections");
+    var dnrCb = card.querySelector(".dnr-cb");
 
     attRow.querySelectorAll(".att-btn").forEach(function (btn) {
       btn.addEventListener("click", function () {
@@ -271,32 +469,9 @@ export function generateOfflineFormHtml(opts: OfflineFormOptions): string {
       });
     });
 
-    var dnrCb = card.querySelector(".dnr-cb");
-    var hifzTypes = card.querySelector(".hifz-types");
     dnrCb.addEventListener("change", function () {
-      hifzTypes.classList.toggle("hidden", dnrCb.checked);
+      todaySections.classList.toggle("hidden", dnrCb.checked);
       validateAll();
-    });
-
-    card.querySelectorAll(".hifz-type").forEach(function (typeEl) {
-      var cb = typeEl.querySelector(".type-active-cb");
-      var fields = typeEl.querySelector(".type-fields");
-      cb.addEventListener("change", function () {
-        fields.classList.toggle("hidden", !cb.checked);
-        validateAll();
-      });
-
-      typeEl.querySelectorAll(".rating-btn").forEach(function (rb) {
-        rb.addEventListener("click", function () {
-          typeEl.querySelectorAll(".rating-btn").forEach(function (b) { b.classList.remove("selected"); });
-          rb.classList.add("selected");
-          validateAll();
-        });
-      });
-
-      typeEl.querySelectorAll(".f-from, .f-to, .f-mistakes").forEach(function (inp) {
-        inp.addEventListener("input", validateAll);
-      });
     });
 
     var noteField = card.querySelector(".note-field");
@@ -305,47 +480,138 @@ export function generateOfflineFormHtml(opts: OfflineFormOptions): string {
       noteField.value = noteField.value.replace(FORBIDDEN_CHARS, " ").slice(0, 100);
       noteCounter.textContent = noteField.value.length + "/100";
     });
+
+    var hwSelect = card.querySelector(".hw-surah");
+    hwSelect.innerHTML = buildSurahOptionsHtml("بدون واجب");
+    var hwFields = card.querySelector(".hw-fields");
+    var hwFrom = card.querySelector(".hw-from-ayah");
+    var hwTo = card.querySelector(".hw-to-ayah");
+    var hwCompleted = card.querySelector(".hw-completed");
+
+    hwSelect.addEventListener("change", function () {
+      var num = hwSelect.value;
+      hwFields.classList.toggle("hidden", !num);
+      if (num) {
+        var s = SURAH_MAP[num];
+        hwFrom.value = "1";
+        hwTo.value = s ? String(s.ayahCount) : "";
+        hwFrom.readOnly = false;
+        hwTo.readOnly = false;
+        hwCompleted.checked = false;
+      }
+      validateAll();
+    });
+
+    hwCompleted.addEventListener("change", function () {
+      var num = hwSelect.value;
+      var s = SURAH_MAP[num];
+      if (hwCompleted.checked && s) {
+        hwFrom.value = "1";
+        hwTo.value = String(s.ayahCount);
+        hwFrom.readOnly = true;
+        hwTo.readOnly = true;
+      } else {
+        hwFrom.readOnly = false;
+        hwTo.readOnly = false;
+      }
+      validateAll();
+    });
+
+    hwFrom.addEventListener("input", validateAll);
+    hwTo.addEventListener("input", validateAll);
   });
 
-  // ── Validation ───────────────────────────────────────────────────────
-  function validateAll() {
-    var problems = [];
-    document.querySelectorAll(".card").forEach(function (card) {
-      var name = card.getAttribute("data-student-name");
-      var cardErrorEl = card.querySelector(".card-error");
-      var cardProblems = [];
+  // ── Single source of truth: read one card's full state ────────────────
+  function readEntries(sectionEl, name, problems) {
+    var list = [];
+    sectionEl.querySelectorAll(".entry-row").forEach(function (row) {
+      var surah = row.querySelector(".entry-surah").value;
+      if (!surah) return;
+      var completed = row.querySelector(".entry-completed").checked;
+      var from = row.querySelector(".entry-from-ayah").value || "1";
+      var to = row.querySelector(".entry-to-ayah").value;
+      var pages = row.querySelector(".entry-pages").value;
+      var ratingBtn = row.querySelector(".rating-btn.selected");
+      var rating = ratingBtn ? ratingBtn.getAttribute("data-rating") : "";
+      var mistakes = row.querySelector(".entry-mistakes").value || "0";
+      if (!rating || (!completed && !to)) {
+        problems.push(name + ": بيانات سورة غير مكتملة");
+        return;
+      }
+      list.push({
+        surah: surah,
+        from: from,
+        to: completed ? String(SURAH_MAP[surah].ayahCount) : to,
+        completed: completed,
+        pages: pages,
+        rating: rating,
+        mistakes: mistakes,
+      });
+    });
+    return list;
+  }
 
-      var attBtn = card.querySelector(".att-btn.selected");
-      if (!attBtn) {
-        cardProblems.push("لم يُحدَّد الحضور");
-      } else {
-        var code = attBtn.getAttribute("data-att");
-        var isPresent = code === "P" || code === "L";
-        if (isPresent) {
-          var dnr = card.querySelector(".dnr-cb").checked;
-          if (!dnr) {
-            var anyActive = false;
-            card.querySelectorAll(".hifz-type").forEach(function (typeEl) {
-              var active = typeEl.querySelector(".type-active-cb").checked;
-              if (!active) return;
-              anyActive = true;
-              var from = parseInt(typeEl.querySelector(".f-from").value, 10);
-              var to = parseInt(typeEl.querySelector(".f-to").value, 10);
-              var ratingBtn = typeEl.querySelector(".rating-btn.selected");
-              if (!from || from < 1 || from > MAX_PAGE) cardProblems.push("صفحة البداية غير صحيحة");
-              if (!to || to < 1 || to > MAX_PAGE) cardProblems.push("صفحة النهاية غير صحيحة");
-              if (!ratingBtn) cardProblems.push("التقييم مطلوب");
-            });
-            if (!anyActive) cardProblems.push('أضف تسميعاً أو اضغط "لم يُسمَع اليوم"');
-          }
+  function readCardState(card) {
+    var studentId = card.getAttribute("data-student-id");
+    var name = card.getAttribute("data-student-name");
+    var attBtn = card.querySelector(".att-btn.selected");
+    var attCode = attBtn ? attBtn.getAttribute("data-att") : "";
+    var isPresent = attCode === "P" || attCode === "L";
+    var dnr = isPresent && card.querySelector(".dnr-cb").checked;
+    var problems = [];
+
+    if (!attCode) problems.push(name + ": لم يُحدَّد الحضور");
+
+    var hifzEntries = [], murajaEntries = [], generalNote = "", homework = null;
+
+    if (isPresent) {
+      if (!dnr) {
+        hifzEntries = readEntries(card.querySelector('.section-block[data-rec-type="NEW"]'), name, problems);
+        murajaEntries = readEntries(card.querySelector('.section-block[data-rec-type="RECENT_REVISION"]'), name, problems);
+        if (hifzEntries.length === 0 && murajaEntries.length === 0) {
+          problems.push(name + ': أضف حفظاً أو اضغط "لم يُسمَع اليوم"');
         }
       }
 
-      if (cardProblems.length > 0) {
+      var noteField = card.querySelector(".note-field");
+      generalNote = (noteField.value || "").replace(FORBIDDEN_CHARS, " ").trim().slice(0, 100);
+
+      var hwSurah = card.querySelector(".hw-surah").value;
+      if (hwSurah) {
+        var hwCompleted = card.querySelector(".hw-completed").checked;
+        var hwFrom = card.querySelector(".hw-from-ayah").value || "1";
+        var hwTo = card.querySelector(".hw-to-ayah").value;
+        if (!hwCompleted && !hwTo) {
+          problems.push(name + ": بيانات واجب الغد غير مكتملة");
+        } else {
+          homework = {
+            surah: hwSurah,
+            from: hwFrom,
+            to: hwCompleted ? String(SURAH_MAP[hwSurah].ayahCount) : hwTo,
+            completed: hwCompleted,
+          };
+        }
+      }
+    }
+
+    return {
+      studentId: studentId, name: name, attCode: attCode, isPresent: isPresent, dnr: dnr,
+      hifzEntries: hifzEntries, murajaEntries: murajaEntries, generalNote: generalNote,
+      homework: homework, problems: problems,
+    };
+  }
+
+  // ── Validation ───────────────────────────────────────────────────────
+  function validateAll() {
+    var allProblems = [];
+    document.querySelectorAll(".card").forEach(function (card) {
+      var state = readCardState(card);
+      var cardErrorEl = card.querySelector(".card-error");
+      if (state.problems.length > 0) {
         card.classList.add("has-error");
-        cardErrorEl.textContent = cardProblems.join(" — ");
+        cardErrorEl.textContent = state.problems.join(" — ");
         cardErrorEl.classList.remove("hidden");
-        problems.push(name + ": " + cardProblems.join("، "));
+        allProblems = allProblems.concat(state.problems);
       } else {
         card.classList.remove("has-error");
         cardErrorEl.classList.add("hidden");
@@ -354,56 +620,149 @@ export function generateOfflineFormHtml(opts: OfflineFormOptions): string {
 
     var summary = document.getElementById("error-summary");
     var list = document.getElementById("error-list");
-    if (problems.length > 0) {
-      list.innerHTML = problems.map(function (p) { return "<li>" + p + "</li>"; }).join("");
+    if (allProblems.length > 0) {
+      list.innerHTML = allProblems.map(function (p) { return "<li>" + p + "</li>"; }).join("");
       summary.style.display = "block";
     } else {
       summary.style.display = "none";
     }
-    document.getElementById("submit-btn").disabled = problems.length > 0;
-    return problems.length === 0;
+    document.getElementById("continue-btn").disabled = allProblems.length > 0;
+    document.getElementById("submit-btn").disabled = allProblems.length > 0;
+    return allProblems.length === 0;
   }
 
-  // ── Payload building ────────────────────────────────────────────────
-  function buildStudentBlock(card) {
-    var studentId = card.getAttribute("data-student-id");
-    var attBtn = card.querySelector(".att-btn.selected");
-    var attCode = attBtn.getAttribute("data-att");
-    var isPresent = attCode === "P" || attCode === "L";
-    var dnr = isPresent && card.querySelector(".dnr-cb").checked;
+  // ── Payload building (surah/ayah entries — no واجب الغد) ───────────────
+  function entryToPart(type, e) {
+    return [type, e.surah, e.from, e.to, e.completed ? "1" : "0", e.pages || "", e.rating, e.mistakes].join(":");
+  }
 
-    var hifzParts = [];
-    if (isPresent && !dnr) {
-      card.querySelectorAll(".hifz-type").forEach(function (typeEl) {
-        var active = typeEl.querySelector(".type-active-cb").checked;
-        if (!active) return;
-        var typeCode = typeEl.getAttribute("data-type");
-        var from = typeEl.querySelector(".f-from").value;
-        var to = typeEl.querySelector(".f-to").value;
-        var ratingBtn = typeEl.querySelector(".rating-btn.selected");
-        var rating = ratingBtn ? ratingBtn.getAttribute("data-rating") : "";
-        var mistakes = typeEl.querySelector(".f-mistakes").value || "0";
-        if (from && to && rating) {
-          hifzParts.push([typeCode, from, to, rating, mistakes].join(":"));
-        }
-      });
-    }
-
-    var noteField = card.querySelector(".note-field");
-    var note = (noteField.value || "").replace(FORBIDDEN_CHARS, " ").trim().slice(0, 100);
-
-    return [studentId, attCode, hifzParts.join("_"), note].join(":");
+  function buildStudentBlock(state) {
+    var parts = [];
+    state.hifzEntries.forEach(function (e) { parts.push(entryToPart("N", e)); });
+    state.murajaEntries.forEach(function (e) { parts.push(entryToPart("R", e)); });
+    var note = state.isPresent ? state.generalNote : "";
+    return [state.studentId, state.attCode, parts.join("_"), note].join(":");
   }
 
   function buildPayload() {
     var dateStr = dateInput.value;
     var blocks = [];
     document.querySelectorAll(".card").forEach(function (card) {
-      blocks.push(buildStudentBlock(card));
+      blocks.push(buildStudentBlock(readCardState(card)));
     });
     return ISTQ_PREFIX + [TEACHER_ID, HALAQA_ID, dateStr, blocks.join(";")].join("|");
   }
 
+  // ── Report building (mirrors the online group report, plus واجب الغد) ──
+  function surahName(num) {
+    var s = SURAH_MAP[num];
+    return s ? s.nameAr : ("سورة " + num);
+  }
+  function fmtAyahs(e) {
+    return e.completed ? "(كاملة)" : (e.from + "–" + e.to);
+  }
+  function fmtHifzEntry(e) {
+    var pages = e.pages ? (" " + e.pages + "ص") : "";
+    var rating = RATING_AR[e.rating] || "";
+    var mistakesNum = parseInt(e.mistakes, 10) || 0;
+    var mistakes = mistakesNum > 0 ? (" أخطاء:" + mistakesNum) : "";
+    return surahName(e.surah) + " " + fmtAyahs(e) + pages + " ⭐" + rating + mistakes;
+  }
+  function fmtSimpleEntry(e) {
+    return surahName(e.surah) + " " + fmtAyahs(e);
+  }
+
+  function buildReport() {
+    var dateStr = dateInput.value;
+    var lines = [
+      "📚 تقرير حلقة " + HALAQA_NAME,
+      "📅 " + dateStr,
+      "👨‍🏫 المعلم: " + TEACHER_NAME,
+      "─────────────────",
+    ];
+    var absentList = [];
+
+    document.querySelectorAll(".card").forEach(function (card) {
+      var state = readCardState(card);
+      if (!state.attCode) return;
+
+      if (!state.isPresent) {
+        absentList.push(state.name + " (" + ATT_LABEL[state.attCode] + ")");
+        return;
+      }
+
+      lines.push("👤 " + state.name + " — " + ATT_LABEL[state.attCode]);
+
+      if (state.dnr) {
+        lines.push("   📖 لم يُسمَع اليوم");
+      } else {
+        if (state.hifzEntries.length > 0) {
+          lines.push("   📖 حفظ: " + state.hifzEntries.map(fmtHifzEntry).join(" | "));
+        } else {
+          lines.push("   📖 لا حفظ جديد");
+        }
+        if (state.murajaEntries.length > 0) {
+          lines.push("   🔄 مراجعة: " + state.murajaEntries.map(fmtSimpleEntry).join(" | "));
+        }
+      }
+
+      if (state.homework) {
+        lines.push("   📝 واجب الغد: " + fmtSimpleEntry(state.homework));
+      }
+      if (state.generalNote) {
+        lines.push("   💬 " + state.generalNote);
+      }
+    });
+
+    if (absentList.length > 0) {
+      lines.push("─────────────────");
+      lines.push("❌ الغياب: " + absentList.join("، "));
+    }
+    lines.push("─────────────────");
+    lines.push("بارك الله في جميع الطلاب 🤲");
+    return lines.join("\\n");
+  }
+
+  // ── متابعة → report overlay → واتساب / رجوع ────────────────────────────
+  document.getElementById("continue-btn").addEventListener("click", function () {
+    if (!validateAll()) {
+      document.getElementById("error-summary").scrollIntoView({ behavior: "smooth" });
+      return;
+    }
+    document.getElementById("report-textarea").value = buildReport();
+    document.getElementById("report-overlay").classList.remove("hidden");
+  });
+
+  document.getElementById("report-back-btn").addEventListener("click", function () {
+    document.getElementById("report-overlay").classList.add("hidden");
+  });
+
+  document.getElementById("copy-report-btn").addEventListener("click", function () {
+    var ta = document.getElementById("report-textarea");
+    ta.focus();
+    ta.select();
+    var copied = false;
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(ta.value);
+        copied = true;
+      }
+    } catch (e) { /* fall through to execCommand */ }
+    if (!copied) {
+      try { copied = document.execCommand("copy"); } catch (e) { /* manual copy remains available — text stays selected */ }
+    }
+    var btn = document.getElementById("copy-report-btn");
+    var original = btn.textContent;
+    btn.textContent = copied ? "✓ تم النسخ" : "انسخ يدوياً (محدَّد)";
+    setTimeout(function () { btn.textContent = original; }, 2000);
+  });
+
+  document.getElementById("whatsapp-share-btn").addEventListener("click", function () {
+    var text = document.getElementById("report-textarea").value;
+    window.open("https://wa.me/?text=" + encodeURIComponent(text), "_blank");
+  });
+
+  // ── إرسال عبر تيليجرام (unchanged mechanism, new payload shape) ────────
   document.getElementById("submit-btn").addEventListener("click", function () {
     if (!validateAll()) {
       document.getElementById("error-summary").scrollIntoView({ behavior: "smooth" });
