@@ -3,6 +3,7 @@
 import { z } from "zod"
 import { prisma } from "@/lib/prisma"
 import { auth } from "@/auth"
+import { formatDate } from "@/lib/date"
 
 const logSchema = z.object({
   studentId:  z.string().optional(),
@@ -113,7 +114,7 @@ export async function getGroupReportData(classId: string, date: string) {
 
   const lines: string[] = [
     `📚 تقرير حلقة "${teacherLabel}"`,
-    `📅 ${date}`,
+    `📅 ${formatDate(date)}`,
     `👨‍🏫 المعلم: ${teacherLabel}`,
     `─────────────────`,
   ]

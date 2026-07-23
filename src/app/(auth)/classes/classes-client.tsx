@@ -45,8 +45,14 @@ type ClassItem = {
 
 type Teacher = { id: string; fullName: string; kunya: string | null }
 
-const LEVEL_OPTIONS = ["الإعدادية", "الثانوية", "الإبتدائية", "البراعم"]
+// Display / sort order: ثانوي، اعدادي، ابتدائي، براعم — always in this order.
+const LEVEL_OPTIONS = ["الثانوية", "الإعدادية", "الإبتدائية", "البراعم"]
 const FUNDING_BODY_OPTIONS = ["وزارة الاوقاف و الشؤون الدينية", "دار القرآن الكريم والسنة", "اخرى"]
+
+function levelRank(level: string | null): number {
+  const i = level ? LEVEL_OPTIONS.indexOf(level) : -1
+  return i === -1 ? LEVEL_OPTIONS.length : i
+}
 
 export function ClassesClient({
   classes,
@@ -59,41 +65,71 @@ export function ClassesClient({
 }) {
   const [createOpen, setCreateOpen] = useState(false)
   const [editClass, setEditClass]   = useState<ClassItem | null>(null)
+  const [levelFilter, setLevelFilter] = useState("_all")
   const router = useRouter()
+
+  const levelFilterItems = [
+    { value: "_all", label: "كل المستويات" },
+    ...LEVEL_OPTIONS.map((l) => ({ value: l, label: l })),
+  ]
+
+  const visibleClasses = classes
+    .filter((c) => levelFilter === "_all" || c.level === levelFilter)
+    .sort((a, b) => levelRank(a.level) - levelRank(b.level))
 
   return (
     <div className="space-y-4">
-      {isPrincipal && (
-        <div className="flex justify-end">
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <div className="w-52">
+          <Select
+            items={levelFilterItems}
+            value={levelFilter}
+            onValueChange={(v) => { if (v != null) setLevelFilter(v) }}
+          >
+            <SelectTrigger className="w-full">
+              <SelectValue placeholder="المستوى" />
+            </SelectTrigger>
+            <SelectContent>
+              {levelFilterItems.map((it) => (
+                <SelectItem key={it.value} value={it.value}>{it.label}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        {isPrincipal && (
           <Button className="gap-2" onClick={() => setCreateOpen(true)}>
             <Plus className="h-4 w-4" />
             إضافة حلقة
           </Button>
-          <Dialog open={createOpen} onOpenChange={setCreateOpen}>
-            <DialogContent className="max-h-[90vh] overflow-y-auto">
-              <DialogHeader>
-                <DialogTitle>إضافة حلقة جديدة</DialogTitle>
-              </DialogHeader>
-              <ClassForm
-                teachers={teachers}
-                onSuccess={() => { setCreateOpen(false); router.refresh() }}
-              />
-            </DialogContent>
-          </Dialog>
-        </div>
+        )}
+      </div>
+      {isPrincipal && (
+        <Dialog open={createOpen} onOpenChange={setCreateOpen}>
+          <DialogContent className="max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>إضافة حلقة جديدة</DialogTitle>
+            </DialogHeader>
+            <ClassForm
+              teachers={teachers}
+              onSuccess={() => { setCreateOpen(false); router.refresh() }}
+            />
+          </DialogContent>
+        </Dialog>
       )}
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-        {classes.length === 0 && (
+        {visibleClasses.length === 0 && (
           <div className="col-span-full py-16 text-center text-muted-foreground space-y-2">
             <BookOpen className="h-12 w-12 mx-auto opacity-30" />
             <p className="text-base font-medium">
-              {isPrincipal ? "لا توجد حلقات بعد" : "لم تُعيَّن لك حلقات بعد"}
+              {classes.length === 0
+                ? (isPrincipal ? "لا توجد حلقات بعد" : "لم تُعيَّن لك حلقات بعد")
+                : "لا توجد حلقات بهذا المستوى"}
             </p>
-            {isPrincipal && <p className="text-sm">اضغط «إضافة حلقة» للبدء</p>}
+            {isPrincipal && classes.length === 0 && <p className="text-sm">اضغط «إضافة حلقة» للبدء</p>}
           </div>
         )}
-        {classes.map((cls) => (
+        {visibleClasses.map((cls) => (
           <Card key={cls.id} className="hover:shadow-md transition-shadow">
             <CardHeader className="pb-2">
               <div className="flex items-start justify-between">

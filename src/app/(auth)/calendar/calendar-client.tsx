@@ -15,6 +15,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { cn } from "@/lib/utils"
+import { formatMonthYear } from "@/lib/date"
 import {
   getCalendarDayStates,
   getCalendarClasses,
@@ -38,7 +39,7 @@ function addMonths(monthStr: string, delta: number): string {
 
 function monthLabel(monthStr: string): string {
   const [y, m] = monthStr.split("-").map(Number)
-  return new Date(y, m - 1, 1).toLocaleDateString("ar-SA", { month: "long", year: "numeric" })
+  return formatMonthYear(new Date(y, m - 1, 1))
 }
 
 // For the first day of the month: getDay() gives 0=Sun .. 6=Sat

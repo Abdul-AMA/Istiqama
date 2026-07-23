@@ -9,6 +9,7 @@ import { Separator } from "@/components/ui/separator"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { ArrowRight, Pencil, Phone } from "lucide-react"
 import { SardDialog } from "./sard-dialog"
+import { formatDateLong } from "@/lib/date"
 
 type Props = { params: Promise<{ id: string }> }
 
@@ -109,10 +110,7 @@ export default async function StudentDetailPage({ params }: Props) {
   }
   const statusInfo = statusMap[student.status] ?? { label: student.status, className: "" }
 
-  const formatDate = (d: Date | null | undefined) => {
-    if (!d) return "—"
-    return new Date(d).toLocaleDateString("ar-SA", { year: "numeric", month: "long", day: "numeric" })
-  }
+  const formatDate = formatDateLong
 
   return (
     <div className="p-4 md:p-6 space-y-6 max-w-4xl mx-auto">
@@ -340,8 +338,7 @@ function SardCard({
   defaultSource: "LOCAL" | "DARUL_QURAN" | "AWQAF"
   defaultKind:   "SARD" | "EXAM"
 }) {
-  const formatDate = (d: Date) =>
-    new Date(d).toLocaleDateString("ar-SA", { year: "numeric", month: "short", day: "numeric" })
+  const formatDate = formatDateLong
 
   return (
     <div className="rounded-lg border p-3 space-y-2">

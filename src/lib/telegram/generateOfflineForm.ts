@@ -56,13 +56,11 @@ function embedJson(value: unknown): string {
 }
 
 function formatTimestamp(d: Date): string {
-  return d.toLocaleString("ar-EG", {
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-  })
+  const day = String(d.getDate()).padStart(2, "0")
+  const month = String(d.getMonth() + 1).padStart(2, "0")
+  const hours = String(d.getHours()).padStart(2, "0")
+  const minutes = String(d.getMinutes()).padStart(2, "0")
+  return `${day}/${month}/${d.getFullYear()} ${hours}:${minutes}`
 }
 
 const ATTENDANCE_OPTIONS = [
@@ -643,11 +641,16 @@ export function generateOfflineFormHtml(opts: OfflineFormOptions): string {
     return surahName(e.surah) + " " + fmtAyahs(e);
   }
 
+  function fmtReportDate(isoDateStr) {
+    var parts = isoDateStr.split("-");
+    return parts.length === 3 ? (parts[2] + "/" + parts[1] + "/" + parts[0]) : isoDateStr;
+  }
+
   function buildReport() {
     var dateStr = dateInput.value;
     var lines = [
       "📚 تقرير حلقة \\"" + TEACHER_LABEL + "\\"",
-      "📅 " + dateStr,
+      "📅 " + fmtReportDate(dateStr),
       "👨‍🏫 المعلم: " + TEACHER_LABEL,
       "─────────────────",
     ];

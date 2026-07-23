@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { ArrowRight, BookOpen } from "lucide-react"
 import { HistoryFilters } from "./history-filters"
+import { formatDateWithWeekday } from "@/lib/date"
 
 type Props = {
   params: Promise<{ id: string }>
@@ -113,11 +114,7 @@ export default async function StudentHistoryPage({ params, searchParams }: Props
     return `${inRange[0].nameAr} — ${inRange[inRange.length - 1].nameAr}`
   }
 
-  function formatDate(d: Date) {
-    return new Date(d).toLocaleDateString("ar-SA", {
-      weekday: "long", year: "numeric", month: "long", day: "numeric",
-    })
-  }
+  const formatDate = formatDateWithWeekday
 
   const totalAttendance = attendanceRecords.length
   const presentCount = counts.PRESENT + counts.LATE

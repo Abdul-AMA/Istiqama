@@ -2,6 +2,7 @@ import { auth } from "@/auth"
 import { redirect } from "next/navigation"
 import { prisma } from "@/lib/prisma"
 import { Badge } from "@/components/ui/badge"
+import { formatDateTime } from "@/lib/date"
 
 export default async function TelegramLogPage() {
   const session = await auth()
@@ -31,7 +32,7 @@ export default async function TelegramLogPage() {
             <div key={r.id} className="rounded-xl border bg-card p-4 space-y-2">
               <div className="flex items-center justify-between gap-2 flex-wrap">
                 <span className="text-xs text-muted-foreground">
-                  {r.receivedAt.toLocaleString("ar-EG")} — chat {r.chatId.toString()}
+                  {formatDateTime(r.receivedAt)} — chat {r.chatId.toString()}
                 </span>
                 <Badge className={r.parsed ? "bg-yellow-100 text-yellow-800 border-yellow-200" : "bg-red-100 text-red-800 border-red-200"}>
                   {r.parsed ? "معالجة جزئياً" : "لم تُعالَج"}

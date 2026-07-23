@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { auth } from "@/auth"
 import { prisma } from "@/lib/prisma"
+import { formatDate } from "@/lib/date"
 
 function csvRow(cells: (string | number | null | undefined)[]): string {
   return cells
@@ -15,7 +16,7 @@ function csvRow(cells: (string | number | null | undefined)[]): string {
 
 function toDateStr(d: Date | null | undefined): string {
   if (!d) return ""
-  return new Date(d).toISOString().slice(0, 10)
+  return formatDate(d)
 }
 
 export async function GET(req: NextRequest) {

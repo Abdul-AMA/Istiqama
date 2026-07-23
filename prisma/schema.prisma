@@ -134,6 +134,8 @@ model User {
   sardLogged       SardRecord[]     @relation("SardRecordedByUser")
   messageCategories MessageCategory[] @relation("CategoryCreatedByUser")
   messageLogs      MessageLog[]     @relation("MessageCreatedByUser")
+  coursesCreated   Course[]         @relation("CourseCreatedByUser")
+  courseScoresLogged CourseScore[]  @relation("CourseScoreRecordedByUser")
 }
 
 // ─── Students ─────────────────────────────────────────────────────────────────
@@ -182,6 +184,7 @@ model Student {
   hifzSessions      HifzSession[]
   sardRecords       SardRecord[]
   messageLogs       MessageLog[]
+  courseScores      CourseScore[]
 }
 
 // ─── Classes (Halaqat) ────────────────────────────────────────────────────────
@@ -208,6 +211,7 @@ model Class {
   attendanceRecords AttendanceRecord[]
   hifzSessions      HifzSession[]
   messageLogs       MessageLog[]
+  courseScores      CourseScore[]
 }
 
 // ─── Timetable ────────────────────────────────────────────────────────────────
@@ -360,4 +364,69 @@ model MessageLog {
   createdBy       User   @relation("MessageCreatedByUser", fields: [createdByUserId], references: [id])
 
   createdAt DateTime @default(now())
+}
+
+// ─── Courses (الدورات) ────────────────────────────────────────────────────────
+
+model Course {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  createdByUserId String
+  createdBy       User   @relation("CourseCreatedByUser", fields: [createdByUserId], references: [id])
+
+  badges CourseBadge[]
+  scores CourseScore[]
+}
+
+model CourseBadge {
+  id        String @id @default(cuid())
+  name      String
+  sortOrder Int    @default(0)
+
+  courseId String
+  course   Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  results CourseBadgeResult[]
+
+  @@unique([courseId, name])
+}
+
+// One row per (course, student) — the teacher's saved score/notes for that student in that course.
+model CourseScore {
+  id        String   @id @default(cuid())
+  score     Int?
+  notes     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  courseId  String
+  course    Course  @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  studentId String
+  student   Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  classId   String
+  class     Class   @relation(fields: [classId], references: [id])
+
+  recordedByUserId String
+  recordedBy       User   @relation("CourseScoreRecordedByUser", fields: [recordedByUserId], references: [id])
+
+  badgeResults CourseBadgeResult[]
+
+  @@unique([courseId, studentId])
+}
+
+model CourseBadgeResult {
+  id     String  @id @default(cuid())
+  earned Boolean @default(false)
+
+  courseScoreId String
+  courseScore   CourseScore @relation(fields: [courseScoreId], references: [id], onDelete: Cascade)
+  badgeId       String
+  badge         CourseBadge @relation(fields: [badgeId], references: [id], onDelete: Cascade)
+
+  @@unique([courseScoreId, badgeId])
 }

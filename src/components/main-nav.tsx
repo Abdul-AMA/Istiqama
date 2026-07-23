@@ -1,6 +1,7 @@
 "use client"
 
 import Link from "next/link"
+import Image from "next/image"
 import { usePathname } from "next/navigation"
 import { useState } from "react"
 import { signOut } from "next-auth/react"
@@ -22,6 +23,7 @@ import {
   BarChart3,
   FileDown,
   AlertTriangle,
+  Award,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Sheet, SheetContent } from "@/components/ui/sheet"
@@ -44,6 +46,7 @@ const principalNav: NavItem[] = [
   { label: "الرسائل",         href: "/messages",    icon: <MessageSquare className="h-5 w-5" /> },
   { label: "التقارير",        href: "/report",      icon: <BarChart3 className="h-5 w-5" /> },
   { label: "كشف الدرجات",    href: "/report-cards", icon: <FileText className="h-5 w-5" /> },
+  { label: "الدورات",        href: "/admin/courses", icon: <Award className="h-5 w-5" /> },
   { label: "المعلمون",       href: "/admin/users", icon: <UserCog className="h-5 w-5" /> },
   { label: "الضيوف",         href: "/admin/guests", icon: <UserCheck className="h-5 w-5" /> },
   { label: "فئات الرسائل",   href: "/admin/message-categories", icon: <Tags className="h-5 w-5" /> },
@@ -62,6 +65,7 @@ const teacherNav: NavItem[] = [
   { label: "الرسائل",        href: "/messages",   icon: <MessageSquare className="h-5 w-5" /> },
   { label: "التقارير",       href: "/report",     icon: <BarChart3 className="h-5 w-5" /> },
   { label: "كشف الدرجات",   href: "/report-cards", icon: <FileText className="h-5 w-5" /> },
+  { label: "الدورات",       href: "/courses",     icon: <Award className="h-5 w-5" /> },
   { label: "نموذج غير متصل", href: "/teacher/offline-form", icon: <FileDown className="h-5 w-5" /> },
 ]
 
@@ -110,7 +114,7 @@ export function MainNav({ role, userName }: Props) {
   const SidebarContent = ({ onClose }: { onClose?: () => void }) => (
     <div className="flex flex-col h-full">
       <div className="flex items-center gap-2 px-3 py-4 border-b">
-        <span className="text-2xl">🕌</span>
+        <Image src="/icons/icon-192.png" alt="استقامة" width={28} height={28} className="shrink-0" />
         <span className="font-bold text-lg text-green-700">استقامة</span>
       </div>
 
@@ -148,7 +152,7 @@ export function MainNav({ role, userName }: Props) {
       {/* Mobile header */}
       <header className="md:hidden flex items-center justify-between px-4 py-3 border-b bg-card sticky top-0 z-30">
         <div className="flex items-center gap-2">
-          <span className="text-xl">🕌</span>
+          <Image src="/icons/icon-192.png" alt="استقامة" width={24} height={24} className="shrink-0" />
           <span className="font-bold text-green-700">استقامة</span>
         </div>
         <Button variant="ghost" size="icon" onClick={() => setOpen(true)}>

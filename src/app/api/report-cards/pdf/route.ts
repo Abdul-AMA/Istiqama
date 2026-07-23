@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma"
 import { renderToBuffer } from "@react-pdf/renderer"
 import { createElement } from "react"
 import { ReportCardDocument } from "@/components/report-card-pdf"
+import { formatDate } from "@/lib/date"
 
 export async function POST(req: NextRequest) {
   const session = await auth()
@@ -133,8 +134,8 @@ export async function POST(req: NextRequest) {
     photoUrl: student.photoUrl,
     className: student.class?.name ?? "",
     teacherName: student.class?.teacher.fullName ?? "",
-    from,
-    to,
+    from: formatDate(from),
+    to: formatDate(to),
     totalPagesMemorized: student.currentTotalPagesMemorized,
     fromSurahName: fromSurah ? (surahNameMap.get(fromSurah) ?? null) : null,
     fromAyah,
@@ -152,7 +153,7 @@ export async function POST(req: NextRequest) {
     sessionsCount: hifzSessions.length,
     lastSardFardi: lastSard
       ? {
-          date: lastSard.date.toISOString().slice(0, 10),
+          date: formatDate(lastSard.date),
           juz:
             lastSard.fromJuz === lastSard.toJuz
               ? `جزء ${lastSard.fromJuz}`
@@ -162,7 +163,7 @@ export async function POST(req: NextRequest) {
       : null,
     lastSardJamai: lastGroupSard
       ? {
-          date: lastGroupSard.date.toISOString().slice(0, 10),
+          date: formatDate(lastGroupSard.date),
           juz:
             lastGroupSard.fromJuz === lastGroupSard.toJuz
               ? `جزء ${lastGroupSard.fromJuz}`

@@ -3,14 +3,13 @@ import { redirect } from "next/navigation"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Download, DatabaseBackup, FileSpreadsheet, AlertCircle } from "lucide-react"
+import { formatDateLong } from "@/lib/date"
 
 export default async function BackupPage() {
   const session = await auth()
   if (session?.user?.role !== "PRINCIPAL") redirect("/dashboard")
 
-  const today = new Date().toLocaleDateString("ar-SA", {
-    year: "numeric", month: "long", day: "numeric",
-  })
+  const today = formatDateLong(new Date())
 
   const exports = [
     {

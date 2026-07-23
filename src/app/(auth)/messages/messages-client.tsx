@@ -12,6 +12,7 @@ import { Badge } from "@/components/ui/badge"
 import { Copy, Send, Loader2, AlertCircle } from "lucide-react"
 import { toast } from "sonner"
 import { getGroupReportData, saveMessageLog } from "@/lib/actions/messages.actions"
+import { formatDate } from "@/lib/date"
 
 type Category = {
   id: string
@@ -181,13 +182,16 @@ function GroupReportTab({ classes }: { classes: ClassOption[] }) {
 function IndividualMessageTab({
   categories,
   students,
+  classes,
   userName,
 }: {
   categories: Category[]
   students: StudentOption[]
+  classes: ClassOption[]
   userName: string
 }) {
   const [categoryId, setCategoryId] = useState("")
+  const [classFilter, setClassFilter] = useState("_all")
   const [studentId, setStudentId] = useState("")
   const [mode, setMode] = useState<"TEMPLATE" | "AI">("TEMPLATE")
   const [text, setText] = useState("")
@@ -196,11 +200,18 @@ function IndividualMessageTab({
   const [isSaving, startSave] = useTransition()
 
   const category = categories.find((c) => c.id === categoryId)
+  const filteredStudents = classFilter === "_all"
+    ? students
+    : students.filter((s) => s.classId === classFilter)
   const student = students.find((s) => s.id === studentId)
+  const classFilterItems = [
+    { value: "_all", label: "كل الحلقات" },
+    ...classes.map((c) => ({ value: c.id, label: c.name })),
+  ]
 
   function generate() {
     if (!category || !student) return
-    const today = new Date().toISOString().slice(0, 10)
+    const today = formatDate(new Date())
 
     if (mode === "TEMPLATE") {
       setText(fillTemplate(category.template, student, today, userName))
@@ -268,7 +279,7 @@ function IndividualMessageTab({
             onValueChange={(v) => { if (v != null) setCategoryId(v) }}
             items={categories.map((c) => ({ value: c.id, label: c.name }))}
           >
-            <SelectTrigger>
+            <SelectTrigger className="w-full">
               <SelectValue placeholder="اختر الفئة" />
             </SelectTrigger>
             <SelectContent>
@@ -281,17 +292,40 @@ function IndividualMessageTab({
           </Select>
         </div>
         <div className="space-y-1">
+          <Label>الحلقة</Label>
+          <Select
+            value={classFilter}
+            onValueChange={(v) => {
+              if (v == null) return
+              setClassFilter(v)
+              if (studentId && !(v === "_all" || students.find((s) => s.id === studentId)?.classId === v)) {
+                setStudentId("")
+              }
+            }}
+            items={classFilterItems}
+          >
+            <SelectTrigger className="w-full">
+              <SelectValue placeholder="كل الحلقات" />
+            </SelectTrigger>
+            <SelectContent>
+              {classFilterItems.map((it) => (
+                <SelectItem key={it.value} value={it.value}>{it.label}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="space-y-1 sm:col-span-2">
           <Label>الطالب</Label>
           <Select
             value={studentId}
             onValueChange={(v) => { if (v != null) setStudentId(v) }}
-            items={students.map((s) => ({ value: s.id, label: s.fullName + (s.className ? ` — ${s.className}` : "") }))}
+            items={filteredStudents.map((s) => ({ value: s.id, label: s.fullName + (s.className ? ` — ${s.className}` : "") }))}
           >
-            <SelectTrigger>
+            <SelectTrigger className="w-full">
               <SelectValue placeholder="اختر الطالب" />
             </SelectTrigger>
             <SelectContent>
-              {students.map((s) => (
+              {filteredStudents.map((s) => (
                 <SelectItem key={s.id} value={s.id}>
                   {s.fullName}
                   {s.className ? ` — ${s.className}` : ""}
@@ -405,6 +439,7 @@ export function MessagesClient({ categories, students, classes, userName }: Prop
             <IndividualMessageTab
               categories={categories}
               students={students}
+              classes={classes}
               userName={userName}
             />
           </CardContent>

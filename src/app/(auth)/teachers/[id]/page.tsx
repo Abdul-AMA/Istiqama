@@ -5,6 +5,7 @@ import Link from "next/link"
 import { ArrowRight, BookOpen, CalendarDays, Phone, Mail, ClipboardList } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
+import { formatDate } from "@/lib/date"
 
 type Props = { params: Promise<{ id: string }> }
 
@@ -82,7 +83,7 @@ export default async function TeacherProfilePage({ params }: Props) {
           </div>
         )}
         <p className="text-xs text-muted-foreground">
-          انضم في {new Date(teacher.createdAt).toLocaleDateString("ar-SA")}
+          انضم في {formatDate(teacher.createdAt)}
         </p>
       </div>
 
@@ -99,7 +100,7 @@ export default async function TeacherProfilePage({ params }: Props) {
             {teacher.qualification && <InfoRow label="المؤهل العلمي" value={teacher.qualification} />}
             {teacher.nationalId && <InfoRow label="رقم الهوية" value={teacher.nationalId} />}
             {teacher.dateOfBirth && (
-              <InfoRow label="تاريخ الميلاد" value={new Date(teacher.dateOfBirth).toLocaleDateString("ar-SA")} />
+              <InfoRow label="تاريخ الميلاد" value={formatDate(teacher.dateOfBirth)} />
             )}
             {teacher.maritalStatus && <InfoRow label="الحالة الاجتماعية" value={teacher.maritalStatus} />}
             {teacher.familySize != null && <InfoRow label="عدد أفراد الأسرة" value={String(teacher.familySize)} />}
